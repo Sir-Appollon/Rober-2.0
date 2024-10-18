@@ -1,0 +1,19 @@
+services:
+  vpn:
+    image: haugene/transmission-openvpn
+    container_name: vpn
+    env_file: .env
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    environment:
+      - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
+      - OPENVPN_CONFIG=${OPENVPN_CONFIG}
+      - LOCAL_NETWORK=${LOCAL_NETWORK}
+    ports:
+      - 9091:9091 # Transmission Web UI
+    volumes:
+      - ./config/vpn:/config/vpn
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
