@@ -26,7 +26,8 @@ services:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
-    ports: -8112:8112 # Deluge Web UI
+    ports:
+      - 8112:8112 # Deluge Web UI
     volumes:
       - ${ROOT}/downloads:/downloads # downloads folder
       - ${ROOT}/config/deluge:/config # config files
