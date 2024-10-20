@@ -12,7 +12,7 @@ services:
       - OPENVPN_CONFIG=${OPENVPN_CONFIG}
       - LOCAL_NETWORK=${LOCAL_NETWORK}
     ports:
-      - 8112:8112 # Transmission Web UI
+      - 8112:8112 # transmission web ui
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
