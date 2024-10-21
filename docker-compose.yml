@@ -49,10 +49,24 @@ services:
     container_name: plex-server
     image: plexinc/pms-docker:latest
     restart: unless-stopped
+    network_mode: service:vpn # run on the vpn network
     environment:
       - TZ=${TZ} # timezone, defined in .env
-    network_mode: host
     volumes:
       - ${ROOT}/config/plex/db:/config # plex database
       - ${ROOT}/config/plex/transcode:/transcode # temp transcoded files
       - ${ROOT}/complete:/data # media library
+  sonarr:
+    container_name: sonarr
+    image: linuxserver/sonarr:latest
+    restart: unless-stopped
+    network_mode: service:vpn
+    environment:
+      - PUID=${PUID} # default user id, defined in .env
+      - PGID=${PGID} # default group id, defined in .env
+      - TZ=${TZ} # timezone, defined in .env
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${ROOT}/config/sonarr:/config # config files
+      - ${ROOT}/complete/tv:/tv # tv shows folder
+      - ${ROOT}/downloads:/downloads # download folder
