@@ -16,7 +16,6 @@ services:
       - 8112:8112 # Deluge Web UI
       - 9117:9117 # Jackett Web UI
       - 32400:32400 # Plex Web UI
-      - 8989:8989 # Sonarr Web UI
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
@@ -57,17 +56,3 @@ services:
       - ${ROOT}/config/plex/db:/config # plex database
       - ${ROOT}/config/plex/transcode:/transcode # temp transcoded files
       - ${ROOT}/complete:/data # media library
-  sonarr:
-    container_name: sonarr
-    image: linuxserver/sonarr:latest
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/sonarr:/config # config files
-      - ${ROOT}/complete/tv:/tv # tv shows folder
-      - ${ROOT}/downloads:/downloads # download folder
