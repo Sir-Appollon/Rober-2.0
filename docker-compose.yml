@@ -52,6 +52,7 @@ services:
     network_mode: service:vpn # run on the vpn network
     environment:
       - TZ=${TZ} # timezone, defined in .env
+      - PLEX_CLAIM=${PLEX_CLAIM} # plex claim, defined in .env
     volumes:
       - ${ROOT}/config/plex/db:/config # plex database
       - ${ROOT}/config/plex/transcode:/transcode # temp transcoded files
