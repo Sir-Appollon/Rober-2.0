@@ -15,7 +15,7 @@ services:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
       - 9117:9117 # Jackett Web UI
-      - 32400:32400 # Plex Web UI
+      #- 32400:32400 # Plex Web UI
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
@@ -49,7 +49,7 @@ services:
     container_name: plex-server
     image: plexinc/pms-docker:latest
     restart: unless-stopped
-    network_mode: service:vpn # run on the vpn network
+    network_mode: host # run on the host network
     environment:
       - TZ=${TZ} # timezone, defined in .env
       - PLEX_CLAIM=${PLEX_CLAIM} # plex claim, defined in .env
@@ -85,3 +85,12 @@ services:
       - ${ROOT}/config/radarr:/config # config files
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d # Nginx configs
+      - ./nginx/certs:/etc/nginx/certs # SSL certificates
