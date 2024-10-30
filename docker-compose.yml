@@ -20,6 +20,12 @@ services:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://ipinfo.io/ip"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
   deluge:
     container_name: deluge
     image: linuxserver/deluge:latest
