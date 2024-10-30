@@ -32,6 +32,8 @@ services:
     volumes:
       - ${ROOT}/downloads:/downloads # downloads folder
       - ${ROOT}/config/deluge:/config # config files
+    depends_on:
+      - vpn
   jackett:
     container_name: jackett
     image: linuxserver/jackett:latest
@@ -85,12 +87,3 @@ services:
       - ${ROOT}/config/radarr:/config # config files
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    ports:
-      - 80:80
-      - 443:443
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d # Nginx configs
-      - ./nginx/certs:/etc/nginx/certs # SSL certificates
