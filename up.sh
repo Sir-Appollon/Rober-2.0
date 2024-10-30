@@ -32,7 +32,7 @@ if [ -z "$VPN_IP" ]; then
 fi
 
 # Check if both IPs are the same
-if [ "$MY_IP" == "$VPN_IP" ]; then
+if [ "$MY_IP" = "$VPN_IP" ]; then
     echo "$(date) [VPN:ERROR] The container's IP is the same as the host's IP. Shutting down..."
     sleep 1
     docker-compose down
