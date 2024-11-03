@@ -31,13 +31,16 @@ if [ -z "$VPN_IP" ]; then
     exit 1
 fi
 
+echo MY_IP
+echo VPN_IP
+
 # Number of retries
 retries=3
 success=0
 
 for i in $(seq 1 $retries); do
-    # Get VPN IP (you need to replace this with your actual command to get the VPN IP)
-    VPN_IP=$(curl -s ifconfig.me) # Replace with your actual method to get VPN IP
+    # Get the VPN IP again from the container
+    VPN_IP=$(docker exec $VPN_CONTAINER curl -s ifconfig.me)
     
     # Check if both IPs are the same
     if [ "$MY_IP" = "$VPN_IP" ]; then
