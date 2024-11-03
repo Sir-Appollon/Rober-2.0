@@ -35,7 +35,7 @@ fi
 retries=3
 success=0
 
-for ((i=1; i<=retries; i++)); do
+for i in $(seq 1 $retries); do
     # Get VPN IP (you need to replace this with your actual command to get the VPN IP)
     VPN_IP=$(curl -s ifconfig.me) # Replace with your actual method to get VPN IP
     
