@@ -31,11 +31,27 @@ if [ -z "$VPN_IP" ]; then
     exit 1
 fi
 
-# Check if both IPs are the same
-if [ "$MY_IP" = "$VPN_IP" ]; then
-    echo "$(date) [VPN:ERROR] The container's IP is the same as the host's IP. Shutting down..."
-    sleep 1
+# Number of retries
+retries=3
+success=0
+
+for ((i=1; i<=retries; i++)); do
+    # Get VPN IP (you need to replace this with your actual command to get the VPN IP)
+    VPN_IP=$(curl -s ifconfig.me) # Replace with your actual method to get VPN IP
+    
+    # Check if both IPs are the same
+    if [ "$MY_IP" = "$VPN_IP" ]; then
+        echo "$(date) [VPN:ERROR] Attempt $i: The container's IP is the same as the host's IP."
+        sleep 2
+    else
+        echo "$(date) [VPN:OK] IP is: $VPN_IP"
+        success=1
+        break
+    fi
+done
+
+if [ "$success" -eq 0 ]; then
+    echo "$(date) [VPN:ERROR] All attempts failed. Shutting down..."
     docker-compose down
-else
-    echo "$(date) [VPN:OK] IP is: $VPN_IP"
 fi
+
