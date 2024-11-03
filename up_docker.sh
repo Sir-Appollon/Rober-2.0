@@ -42,7 +42,7 @@ for i in $(seq 1 $retries); do
     # Check if both IPs are the same
     if [ "$MY_IP" = "$VPN_IP" ]; then
         echo "$(date) [VPN:ERROR] Attempt $i: The container's IP is the same as the host's IP."
-        sleep 2
+        sleep 6
     else
         echo "$(date) [VPN:OK] IP is: $VPN_IP"
         success=1
