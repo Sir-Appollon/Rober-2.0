@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get the primary IP address of the host using ifconfig or ip
-HOST=$(ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')
+HOST=$(ip -4 addr show | awk '/inet / {print $2}' | cut -d/ -f1 | grep -v "127.0.0.1" | head -n 1)
 
 # Alternative method using ip command (recommended for modern systems)
 # HOST=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v "127.0.0.1" | head -n 1)
