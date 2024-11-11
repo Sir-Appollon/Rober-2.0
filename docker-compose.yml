@@ -15,13 +15,14 @@ services:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
       - 9117:9117 # Jackett Web UI
+      - 9696:9696 # Prowlarr web UI
       #- 32400:32400 # Plex Web UI
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "https://ipinfo.io/ip"]
+      test: [ "CMD", "curl", "-f", "https://ipinfo.io/ip" ]
       interval: 1m30s
       timeout: 30s
       retries: 5
@@ -93,3 +94,14 @@ services:
       - ${ROOT}/config/radarr:/config # config files
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
+  prowlarr:
+    network_mode: host
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID} # default user id, defined in .env
+      - PGID=${PGID} # default group id, defined in .env
+      - TZ=${TZ} # timezone, defined in .env
+    volumes:
+      - ${ROOT}/config/prowlarr:/config # config files
+    restart: unless-stopped
