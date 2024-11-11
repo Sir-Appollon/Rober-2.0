@@ -13,10 +13,10 @@ services:
       - LOCAL_NETWORK=${LOCAL_NETWORK}
     ports:
       - 9091:9091 # Transmission Web UI
-      - 8112:8112 # Deluge Web UI
-      - 9117:9117 # Jackett Web UI
-      - 9696:9696 # Prowlarr web UI
-      #- 32400:32400 # Plex Web UI
+    #      - 8112:8112 # Deluge Web UI
+    #      - 9117:9117 # Jackett Web UI
+    #      - 9696:9696 # Prowlarr web UI
+    #      - 32400:32400 # Plex Web UI
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
@@ -95,13 +95,13 @@ services:
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
   prowlarr:
-    network_mode: host
-    image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: unless-stopped
+    network_mode: host
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
     volumes:
       - ${ROOT}/config/prowlarr:/config # config files
-    restart: unless-stopped
