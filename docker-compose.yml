@@ -13,8 +13,8 @@ services:
       - LOCAL_NETWORK=${LOCAL_NETWORK}
     ports:
       - 9091:9091 # Transmission Web UI
-    #      - 8112:8112 # Deluge Web UI
-    #      - 9117:9117 # Jackett Web UI
+      - 8112:8112 # Deluge Web UI
+      - 9117:9117 # Jackett Web UI
     #      - 9696:9696 # Prowlarr web UI
     #      - 32400:32400 # Plex Web UI
     volumes:
