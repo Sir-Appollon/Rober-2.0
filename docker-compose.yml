@@ -94,14 +94,24 @@ services:
       - ${ROOT}/config/radarr:/config # config files
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
-  prowlarr:
-    container_name: prowlarr
-    image: lscr.io/linuxserver/prowlarr:latest
-    restart: unless-stopped
-    network_mode: host
+  # prowlarr:
+  #   container_name: prowlarr
+  #   image: lscr.io/linuxserver/prowlarr:latest
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   environment:
+  #     - PUID=${PUID} # default user id, defined in .env
+  #     - PGID=${PGID} # default group id, defined in .env
+  #     - TZ=${TZ} # timezone, defined in .env
+  #   volumes:
+  #     - ${ROOT}/config/prowlarr:/config # config files
+  overseerr:
+    container_name: overseerr
+    image: lscr.io/linuxserver/overseerr:latest
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
     volumes:
-      - ${ROOT}/config/prowlarr:/config # config files
+      - ${ROOT}/config/overseerr:/config # config files
+    restart: unless-stopped
