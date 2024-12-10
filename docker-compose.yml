@@ -46,7 +46,7 @@ services:
     container_name: jackett
     image: linuxserver/jackett:latest
     restart: unless-stopped
-    network_mode: service:vpn # run on the vpn network
+    #  network_mode: service:vpn # run on the vpn network
     environment:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
@@ -111,6 +111,7 @@ services:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
+  # network_mode: service:vpn # run on the vpn network
     environment:
       - LOG_LEVEL=info
       - LOG_HTML=false
