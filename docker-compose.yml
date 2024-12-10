@@ -52,7 +52,7 @@ services:
       - PUID=${PUID} # default user id, defined in .env
       - PGID=${PGID} # default group id, defined in .env
       - TZ=${TZ} # timezone, defined in .env
-    port:
+    ports:
       - 9117:9117
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -116,7 +116,7 @@ services:
     restart: unless-stopped
     network_mode: host
     # network_mode: service:vpn # run on the vpn network
-    port:
+    ports:
       - 8191:8191
     environment:
       - LOG_LEVEL=info
