@@ -113,14 +113,14 @@ services:
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
-    restart: unless-stopped
-    #network_mode: host
-    #network_mode: service:vpn # run on the vpn network
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - TZ=${TZ} # timezone, defined in .env
     ports:
       - 8191:8191
-    environment:
-      - LOG_LEVEL=info
-      - LOG_HTML=false
+    restart: unless-stopped
   # prowlarr:
   #   container_name: prowlarr
   #   image: lscr.io/linuxserver/prowlarr:latest
