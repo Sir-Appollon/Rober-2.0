@@ -111,7 +111,6 @@ services:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
-    network_mode: service:vpn
     environment:
       - LOG_LEVEL=info
       - LOG_HTML=false
