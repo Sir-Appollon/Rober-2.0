@@ -62,9 +62,9 @@ services:
     container_name: plex-server
     image: plexinc/pms-docker:latest
     restart: unless-stopped
-    #network_mode: host # run on the host network
-    networks:
-      - plex_network
+    network_mode: host # run on the host network
+    #networks:
+    #  - plex_network
     environment:
       - TZ=${TZ} # timezone, defined in .env
       - PLEX_CLAIM=${PLEX_CLAIM} # plex claim, defined in .env
