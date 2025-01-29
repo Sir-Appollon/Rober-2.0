@@ -109,7 +109,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${ROOT}/proxy/logs:/var/log/nginx
-      - ${ROOT}/config/nginx/Plexconf # Mount the NGINX config directory
+      - ${ROOT}/config/nginx/Plexconf:/etc/nginx # Mount the NGINX config directory
       - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # Mount the SSL certificates directory
   flaresolverr:
     container_name: flaresolverr
