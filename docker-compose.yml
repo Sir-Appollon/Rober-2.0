@@ -103,8 +103,9 @@ services:
   nginx:
     container_name: nginx
     image: nginx:alpine
-    networks:
-      - plex_network
+    network_mode: host
+    #networks:
+    #  - plex_network
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
