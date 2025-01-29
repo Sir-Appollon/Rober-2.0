@@ -103,13 +103,14 @@ services:
     image: nginx:alpine
     network_mode: host
     environment:
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/proxy/logs:/var/log/nginx # Proxy logs
-      - ${ROOT}/config:/etc/nginx # Proxy configuration
+      - ${ROOT}/proxy/logs:/var/log/nginx
+      - ${ROOT}/config/nginx/Plexconf # Mount the NGINX config directory
+      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate  # Mount the SSL certificates directory
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -133,14 +134,13 @@ services:
       - ${ROOT}/config/prowlarr:/config # config files
     ports:
       - 9696:9696 # map port 9696 on the host to port 9696 in the container
-  # overseerr:
-  #   container_name: overseerr
-  #   image: lscr.io/linuxserver/overseerr:latest
-  #   restart: unless-stopped
-  #   network_mode: host
-  #   environment:
-  #     - PUID=${PUID} # default user id, defined in .env
-  #     - PGID=${PGID} # default group id, defined in .env
-  #     - TZ=${TZ} # timezone, defined in .env
-  #   volumes:
-  #     - ${ROOT}/config/overseerr:/config # config files
+  openssl:
+    image: alpine:latest
+    container_name: openssl
+    volumes:
+      - ./config/nginx/SSL_certificate:/certs  # Directory where certificates will be stored
+    entrypoint: >
+      sh -c "
+        apk add --no-cache openssl && \
+        openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
+      ""
