@@ -110,7 +110,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${ROOT}/proxy/logs:/var/log/nginx
       - ${ROOT}/config/nginx/Plexconf # Mount the NGINX config directory
-      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate  # Mount the SSL certificates directory
+      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # Mount the SSL certificates directory
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -138,9 +138,9 @@ services:
     image: alpine:latest
     container_name: openssl
     volumes:
-      - ./config/nginx/SSL_certificate:/certs  # Directory where certificates will be stored
+      - ./config/nginx/SSL_certificate:/certs # Directory where certificates will be stored
     entrypoint: >
       sh -c "
         apk add --no-cache openssl && \
         openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
-      ""
+      "
