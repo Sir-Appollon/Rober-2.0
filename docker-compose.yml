@@ -147,3 +147,7 @@ services:
         apk add --no-cache openssl && \
         openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
       "
+networks:
+  plex_network:
+    # Define the custom network here
+    driver: bridge # Optional, but using the default "bridge" network driver
