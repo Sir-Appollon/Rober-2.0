@@ -65,7 +65,7 @@ services:
     network_mode: host # run on the host network
     #networks:
     #  - plex_network
-        ports:
+    ports:
       - "32400:32400/tcp"
       - "32400:32400/udp"
     environment:
