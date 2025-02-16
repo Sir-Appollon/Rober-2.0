@@ -65,9 +65,6 @@ services:
     network_mode: host # run on the host network
     #networks:
     #  - plex_network
-    ports:
-      - "32400:32400/tcp"
-      - "32400:32400/udp"
     environment:
       - TZ=${TZ} # timezone, defined in .env
       - PLEX_CLAIM=${PLEX_CLAIM} # plex claim, defined in .env
