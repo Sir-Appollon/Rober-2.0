@@ -65,6 +65,9 @@ services:
     network_mode: host # run on the host network
     #networks:
     #  - plex_network
+        ports:
+      - "32400:32400/tcp"
+      - "32400:32400/udp"
     environment:
       - TZ=${TZ} # timezone, defined in .env
       - PLEX_CLAIM=${PLEX_CLAIM} # plex claim, defined in .env
@@ -137,16 +140,16 @@ services:
       - ${ROOT}/config/prowlarr:/config # config files
     ports:
       - 9696:9696 # map port 9696 on the host to port 9696 in the container
-  openssl:
-    image: alpine:latest
-    container_name: openssl
-    volumes:
-      - ./config/nginx/SSL_certificate:/certs # Directory where certificates will be stored
-    entrypoint: >
-      sh -c "
-        apk add --no-cache openssl && \
-        openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
-      "
+  #openssl:
+  #  image: alpine:latest
+  #  container_name: openssl
+  #  volumes:
+  #    - ./config/nginx/SSL_certificate:/certs # Directory where certificates will be stored
+  #  entrypoint: >
+  #    sh -c "
+  #      apk add --no-cache openssl && \
+  #      openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
+  #    "
 networks:
   plex_network:
     # Define the custom network here
