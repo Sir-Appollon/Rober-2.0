@@ -100,21 +100,20 @@ services:
       - ${ROOT}/config/radarr:/config # config files
       - ${ROOT}/complete/movies:/movies # movies folder
       - ${ROOT}/downloads:/downloads # download folder
-  nginx:
-    container_name: nginx
-    image: nginx:alpine
-    network_mode: host
+    #nginx:
+    #  container_name: nginx
+    #  image: nginx:alpine
+    #  network_mode: host
     #networks:
     #  - plex_network
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/proxy/logs:/var/log/nginx
-      - ${ROOT}/config/nginx/Plexconf:/etc/nginx # Mount the NGINX config directory
-      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # Mount the SSL certificates directory
+    #  environment:
+    #    - PUID=${PUID}
+    #    - PGID=${PGID}
+    #    - TZ=${TZ}
+    #  volumes:
+    #    - ${ROOT}/proxy/logs:/var/log/nginx
+    #    - ${ROOT}/config/nginx/Plexconf:/etc/nginx # Mount the NGINX config directory
+    #    - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # Mount the SSL certificates directory
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
