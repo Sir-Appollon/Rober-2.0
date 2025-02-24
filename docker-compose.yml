@@ -113,6 +113,10 @@ services:
       - ${ROOT}/proxy/logs:/var/log/nginx
       - ${ROOT}/config/nginx/Plexconf:/etc/nginx/conf.d # Store Plex config here
       - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # For HTTPS (later)
+      - /etc/letsencrypt/live:/etc/letsencrypt/live
+      - /etc/letsencrypt/archive:/etc/letsencrypt/archive
+      - /etc/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
+      
 
   flaresolverr:
     container_name: flaresolverr
