@@ -1,12 +1,29 @@
+#!/bin/bash
+
+# Load environment variables from .env file
+ENV_FILE="$(dirname "$0")/../.env"  # Assumes .env is at {ROOT}
+if [[ -f "$ENV_FILE" ]]; then
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+else
+    echo -e "[Error]: ${RED}CRITICAL${RESET} - .env file not found. Please create it with ROOT path."
+    exit 1
+fi
+
+# Color codes for status
+GREEN="\e[32m"
+ORANGE="\e[33m"
+RED="\e[31m"
+RESET="\e[0m"
+
+# Define Nginx container name and domain
+NGINX_CONTAINER="nginx-proxy"
+DOMAIN="robert2-0.duckdns.org"
+
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Everything is running smoothly"
-    DOMAIN="robert2-0.duckdns.org"
-    CONFIG_PATH="/etc/nginx/conf.d/nginx.conf"  # Path inside the container
-    NGINX_CONTAINER="nginx-proxy"  # Make sure this is correctly set!
 
-
-    # 1. Check if the Docker container is running
+    # 1️⃣ Check if the Docker container is running
     if ! docker ps --format "{{.Names}}" | grep -q "$NGINX_CONTAINER"; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Nginx container ($NGINX_CONTAINER) is not running"
@@ -14,7 +31,7 @@ check_nginx() {
         return
     fi
 
-    # 2. Validate Nginx configuration inside the container (ignore warnings)
+    # 2️⃣ Validate Nginx configuration inside the container
     NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t 2>&1)
     
     if echo "$NGINX_CONFIG_CHECK" | grep -q "test is successful"; then
@@ -26,24 +43,34 @@ check_nginx() {
         return
     fi
 
-    # 3. Check if Nginx is listening on expected ports
-    HTTP_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":80 " | grep nginx)
-    HTTPS_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":443 " | grep nginx)
+    # 3️⃣ Check if Nginx is listening on expected ports
+    if [[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' $NGINX_CONTAINER)" == "host" ]]; then
+        if sudo netstat -tulnp | grep -qE ":80|:443"; then
+            echo -e "[Nginx]: ${GREEN}OK${RESET} - Ports 80 and 443 are listening on the host"
+        else
+            STATUS="${RED}CRITICAL${RESET}"
+            MSG="Nginx is not listening on expected ports (80, 443) on the host"
+            echo -e "[Nginx]: $STATUS - $MSG"
+            return
+        fi
+    else
+        HTTP_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":80 " | grep nginx)
+        HTTPS_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":443 " | grep nginx)
 
-    if [[ -z "$HTTP_PORT" && -z "$HTTPS_PORT" ]]; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx is not listening on expected ports (80, 443)"
-        echo -e "[Nginx]: $STATUS - $MSG"
-        return
+        if [[ -z "$HTTP_PORT" && -z "$HTTPS_PORT" ]]; then
+            STATUS="${RED}CRITICAL${RESET}"
+            MSG="Nginx is not listening on expected ports (80, 443)"
+            echo -e "[Nginx]: $STATUS - $MSG"
+            return
+        fi
     fi
 
-    # 4. Check SSL Certificate expiration inside the container
-    SSL_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-    SSL_EXPIRY=$(docker exec "$NGINX_CONTAINER" openssl x509 -enddate -noout -in "$SSL_PATH" 2>/dev/null | cut -d= -f2)
+    # 4️⃣ Check SSL Certificate expiration (from the host, not Docker)
+    SSL_EXPIRY=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
 
     if [[ -z "$SSL_EXPIRY" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="Failed to retrieve SSL certificate for $DOMAIN inside the container"
+        MSG="Failed to retrieve SSL certificate for $DOMAIN (checked from host)"
     else
         EXPIRY_DATE=$(date -d "$SSL_EXPIRY" +%s)
         CURRENT_DATE=$(date +%s)
@@ -55,7 +82,7 @@ check_nginx() {
         fi
     fi
 
-    # 5. Check if the external URL is accessible
+    # 5️⃣ Check if the external URL is accessible
     HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$DOMAIN)
 
     if [[ "$HTTP_RESPONSE" -ne 200 ]]; then

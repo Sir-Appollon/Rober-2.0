@@ -128,18 +128,6 @@ services:
     ports:
       - 8191:8191
     restart: unless-stopped
-  prowlarr:
-    container_name: prowlarr
-    image: lscr.io/linuxserver/prowlarr:latest
-    restart: unless-stopped
-    environment:
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
-    volumes:
-      - ${ROOT}/config/prowlarr:/config # config files
-    ports:
-      - 9696:9696 # map port 9696 on the host to port 9696 in the container
   health:
     image: alpine
     container_name: health
