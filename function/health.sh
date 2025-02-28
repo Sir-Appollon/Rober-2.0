@@ -111,12 +111,14 @@ check_nginx() {
     fi
 
     # 2. Validate Nginx configuration
-    if ! nginx -t 2>&1 | grep -q "syntax is OK"; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx configuration syntax error"
-        echo -e "[Nginx]: $STATUS - $MSG"
-        return
+    NGINX_CONFIG_CHECK=$(nginx -t 2>&1)
+    if [[ $? -ne 0 ]]; then
+     STATUS="${RED}CRITICAL${RESET}"
+     MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
+     echo -e "[Nginx]: $STATUS - $MSG"
+     return
     fi
+
 
     # 3. Check if Nginx is listening on expected ports
     HTTP_PORT=$(netstat -tulnp | grep ":80 " | grep nginx)
