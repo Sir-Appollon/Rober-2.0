@@ -98,6 +98,43 @@ check_vpn() {
     echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working."
 }
 
+check_docker_health() {
+    STATUS="${GREEN}OK${RESET}"
+    MSG="All containers are running smoothly."
+
+    # Check for any unhealthy Docker containers
+    UNHEALTHY_CONTAINERS=$(docker ps --format "{{.Names}} {{.State}}" | grep -E 'Restarting|Exited')
+
+    if [[ -n "$UNHEALTHY_CONTAINERS" ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="Some containers are in Restarting/Exited state: $UNHEALTHY_CONTAINERS."
+        echo -e "[Docker Health]: $STATUS - $MSG"
+        return
+    fi
+
+    echo -e "[Docker Health]: $STATUS - $MSG"
+}
+
+check_network() {
+    STATUS="${GREEN}OK${RESET}"
+    MSG="Network connectivity is stable."
+
+    # Check if key ports are open
+    OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
+    
+    # Test internet connectivity
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        echo -e "[Network]: $STATUS - Internet connectivity is fine."
+    else
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="No internet connectivity."
+        echo -e "[Network]: $STATUS - $MSG"
+        return
+    fi
+
+    echo -e "[Network]: $STATUS - Open Ports: $OPEN_PORTS"
+}
+
 check_server_health() {
     CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
     RAM_USAGE=$(free | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
@@ -125,4 +162,6 @@ check_server_health() {
 # Run checks
 check_nginx
 check_vpn
+check_docker_health
+check_network
 check_server_health
