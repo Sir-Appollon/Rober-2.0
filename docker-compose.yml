@@ -140,13 +140,11 @@ services:
       - ${ROOT}/config/prowlarr:/config # config files
     ports:
       - 9696:9696 # map port 9696 on the host to port 9696 in the container
-  #openssl:
-  #  image: alpine:latest
-  #  container_name: openssl
-  #  volumes:
-  #    - ./config/nginx/SSL_certificate:/certs # Directory where certificates will be stored
-  #  entrypoint: >
-  #    sh -c "
-  #      apk add --no-cache openssl && \
-  #      openssl req -newkey rsa:2048 -nodes -keyout /certs/teserver.key -out /certs/server.crt -subj '/C=US/ST=State/L=City/O=Company/CN=192.168.2.70'
-  #    "
+  health:
+    image: alpine
+    container_name: health
+    volumes:
+      - ${ROOT}/function:/scripts
+      - ${ROOT}/log:/log
+    command: ["sh", "-c", "sh /scripts/health.sh >> /log/health.log 2>&1 && sleep 300"]
+    restart: always
