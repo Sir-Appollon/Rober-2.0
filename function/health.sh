@@ -19,16 +19,43 @@ RESET="\e[0m"
 NGINX_CONTAINER="nginx-proxy"
 VPN_CONTAINER="vpn"
 
-# List of required open ports (Web UIs, SSH, Plex - but NOT 32400 since Nginx manages it)
-REQUIRED_PORTS=(22 53 80 443 631 7878 8112 8191 8989 9091 9117 32401 32600 36487 44075 61209)
+# Load Plex domain from .env
+PLEX_LOCAL_URL="http://localhost:32400/web"
+PLEX_REMOTE_URL="https://$DOMAIN/web"
+
+check_web_status() {
+    STATUS="${GREEN}OK${RESET}"
+    MSG="Plex is available locally and via the web."
+
+    # 1️⃣ Check if Plex is available locally
+    LOCAL_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$PLEX_LOCAL_URL")
+    if [[ "$LOCAL_RESPONSE" -ne 200 ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="Plex is NOT accessible locally (Response: $LOCAL_RESPONSE)."
+        echo -e "[Plex Web]: $STATUS - $MSG"
+        return
+    fi
+    echo -e "[Plex Web]: ${GREEN}OK${RESET} - Plex is accessible locally."
+
+    # 2️⃣ Check if Plex is accessible from the web
+    REMOTE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$PLEX_REMOTE_URL")
+    if [[ "$REMOTE_RESPONSE" -ne 200 ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="Plex is NOT accessible from the web (Response: $REMOTE_RESPONSE)."
+        echo -e "[Plex Web]: $STATUS - $MSG"
+        return
+    fi
+    echo -e "[Plex Web]: ${GREEN}OK${RESET} - Plex is accessible via the web."
+}
 
 check_network() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Network connectivity is stable."
 
     # Check if key ports are open
+    REQUIRED_PORTS=(22 53 80 443 631 7878 8112 8191 8989 9091 9117 32401 32600 36487 44075 61209)
     OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
-
+    
     # Find unnecessary open ports
     UNNECESSARY_PORTS=()
     for port in $OPEN_PORTS; do
@@ -55,85 +82,6 @@ check_network() {
     else
         echo -e "[Network]: ${GREEN}OK${RESET} - Only necessary ports are open."
     fi
-}
-
-check_nginx() {
-    STATUS="${GREEN}OK${RESET}"
-    MSG="Nginx is running smoothly."
-
-    # 1️⃣ Check if the Nginx container is running
-    if ! docker ps --format "{{.Names}}" | grep -q "$NGINX_CONTAINER"; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx container ($NGINX_CONTAINER) is not running."
-        echo -e "[Nginx]: $STATUS - $MSG"
-        return
-    fi
-
-    # 2️⃣ Validate Nginx configuration inside the container
-    NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t 2>&1)
-    if echo "$NGINX_CONFIG_CHECK" | grep -q "test is successful"; then
-        echo -e "[Nginx]: ${GREEN}OK${RESET} - Nginx configuration is valid."
-    else
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
-        echo -e "[Nginx]: $STATUS - $MSG"
-        return
-    fi
-
-    # 3️⃣ Check if Nginx is listening on expected ports
-    if sudo netstat -tulnp | grep -qE ":80|:443"; then
-        echo -e "[Nginx]: ${GREEN}OK${RESET} - Ports 80 and 443 are listening on the host."
-    else
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx is not listening on expected ports (80, 443) on the host."
-        echo -e "[Nginx]: $STATUS - $MSG"
-        return
-    fi
-}
-
-check_vpn() {
-    STATUS="${GREEN}OK${RESET}"
-    MSG="VPN is running smoothly."
-
-    # 1️⃣ Check if the VPN container is running
-    if ! docker ps --format "{{.Names}}" | grep -q "$VPN_CONTAINER"; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN container ($VPN_CONTAINER) is not running."
-        echo -e "[VPN]: $STATUS - $MSG"
-        return
-    fi
-
-    # 2️⃣ Check if VPN tunnel exists
-    VPN_TUNNEL=$(docker exec "$VPN_CONTAINER" ip a | grep tun0)
-    if [[ -z "$VPN_TUNNEL" ]]; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN tunnel (tun0) is missing in the container."
-        echo -e "[VPN]: $STATUS - $MSG"
-        return
-    fi
-
-    # 3️⃣ Check external IP (should NOT match host IP)
-    HOST_IP=$(curl -s https://ipinfo.io/ip)
-    VPN_IP=$(docker exec "$VPN_CONTAINER" curl -s https://ipinfo.io/ip)
-
-    if [[ "$HOST_IP" == "$VPN_IP" ]]; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN is NOT working! External IP is still the same as the host ($HOST_IP)."
-        echo -e "[VPN]: $STATUS - $MSG"
-        return
-    fi
-
-    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN is running, External IP: $VPN_IP."
-
-    # 4️⃣ Test VPN connectivity
-    if ! docker exec "$VPN_CONTAINER" ping -c 1 8.8.8.8 >/dev/null 2>&1; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN is up but cannot reach external internet."
-        echo -e "[VPN]: $STATUS - $MSG"
-        return
-    fi
-
-    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working."
 }
 
 check_docker_health() {
@@ -178,8 +126,7 @@ check_server_health() {
 }
 
 # Run checks
-check_nginx
-check_vpn
+check_web_status
 check_docker_health
 check_network
 check_server_health
