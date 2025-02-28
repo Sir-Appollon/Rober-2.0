@@ -38,7 +38,10 @@ check_web_status() {
     echo -e "[Plex Web]: ${GREEN}OK${RESET} - Plex is accessible locally."
 
     # 2️⃣ Check if Plex is accessible from the web
-    REMOTE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$PLEX_REMOTE_URL")
+    echo "Debug: Testing Plex Web Access..."
+    curl -v -o /dev/null -w "%{http_code}" -L "$PLEX_REMOTE_URL/index.html"
+    REMOTE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L "$PLEX_REMOTE_URL/index.html")
+    echo "Debug: Response Code from Curl = $REMOTE_RESPONSE"
     if [[ "$REMOTE_RESPONSE" -ne 200 ]]; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Plex is NOT accessible from the web (Response: $REMOTE_RESPONSE)."
