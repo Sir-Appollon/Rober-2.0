@@ -5,7 +5,7 @@ ENV_FILE="$(dirname "$0")/../.env"  # Assumes .env is at {ROOT}
 if [[ -f "$ENV_FILE" ]]; then
     export $(grep -v '^#' "$ENV_FILE" | xargs)
 else
-    echo -e "[Error]: ${RED}CRITICAL${RESET} - .env file not found. Please create it with ROOT path."
+    echo -e "[Error]: \e[31mCRITICAL\e[0m - .env file not found. Please create it with ROOT path."
     exit 1
 fi
 
@@ -15,28 +15,26 @@ ORANGE="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
 
-# Define Nginx container name and domain
+# Define container names from .env if available
 NGINX_CONTAINER="nginx-proxy"
 VPN_CONTAINER="vpn"
-DOMAIN="robert2-0.duckdns.org"
 
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
-    MSG="Everything is running smoothly"
+    MSG="Nginx is running smoothly."
 
-    # 1️⃣ Check if the Docker container is running
+    # 1️⃣ Check if the Nginx container is running
     if ! docker ps --format "{{.Names}}" | grep -q "$NGINX_CONTAINER"; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx container ($NGINX_CONTAINER) is not running"
+        MSG="Nginx container ($NGINX_CONTAINER) is not running."
         echo -e "[Nginx]: $STATUS - $MSG"
         return
     fi
 
     # 2️⃣ Validate Nginx configuration inside the container
     NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t 2>&1)
-    
     if echo "$NGINX_CONFIG_CHECK" | grep -q "test is successful"; then
-        echo -e "[Nginx]: ${GREEN}OK${RESET} - Nginx configuration is valid"
+        echo -e "[Nginx]: ${GREEN}OK${RESET} - Nginx configuration is valid."
     else
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
@@ -45,80 +43,33 @@ check_nginx() {
     fi
 
     # 3️⃣ Check if Nginx is listening on expected ports
-    if [[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' $NGINX_CONTAINER)" == "host" ]]; then
-        if sudo netstat -tulnp | grep -qE ":80|:443"; then
-            echo -e "[Nginx]: ${GREEN}OK${RESET} - Ports 80 and 443 are listening on the host"
-        else
-            STATUS="${RED}CRITICAL${RESET}"
-            MSG="Nginx is not listening on expected ports (80, 443) on the host"
-            echo -e "[Nginx]: $STATUS - $MSG"
-            return
-        fi
+    if sudo netstat -tulnp | grep -qE ":80|:443"; then
+        echo -e "[Nginx]: ${GREEN}OK${RESET} - Ports 80 and 443 are listening on the host."
     else
-        HTTP_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":80 " | grep nginx)
-        HTTPS_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":443 " | grep nginx)
-
-        if [[ -z "$HTTP_PORT" && -z "$HTTPS_PORT" ]]; then
-            STATUS="${RED}CRITICAL${RESET}"
-            MSG="Nginx is not listening on expected ports (80, 443)"
-            echo -e "[Nginx]: $STATUS - $MSG"
-            return
-        fi
-    fi
-
-    # 4️⃣ Check SSL Certificate expiration (from the host, not Docker)
-    SSL_EXPIRY=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
-
-    if [[ -z "$SSL_EXPIRY" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="Failed to retrieve SSL certificate for $DOMAIN (checked from host)"
-    else
-        EXPIRY_DATE=$(date -d "$SSL_EXPIRY" +%s)
-        CURRENT_DATE=$(date +%s)
-        DAYS_LEFT=$(( (EXPIRY_DATE - CURRENT_DATE) / 86400 ))
-
-        if (( DAYS_LEFT <= 7 )); then
-            STATUS="${ORANGE}MINOR ISSUE${RESET}"
-            MSG="SSL certificate for $DOMAIN is expiring in $DAYS_LEFT days"
-        fi
-    fi
-
-    # 5️⃣ Check if the external URL is accessible (Use Plex Token for authentication)
-    if [[ -z "$PLEX_TOKEN" ]]; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="PLEX_TOKEN is missing from .env. Cannot check external access."
+        MSG="Nginx is not listening on expected ports (80, 443) on the host."
         echo -e "[Nginx]: $STATUS - $MSG"
         return
     fi
-
-    HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN?X-Plex-Token=$PLEX_TOKEN")
-
-    if [[ "$HTTP_RESPONSE" -ne 200 ]]; then
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx is running, but $DOMAIN is not accessible (Response: $HTTP_RESPONSE)"
-    fi
-
-    echo -e "[Nginx]: $STATUS - $MSG"
 }
 
 check_vpn() {
     STATUS="${GREEN}OK${RESET}"
-    MSG="VPN is running smoothly"
+    MSG="VPN is running smoothly."
 
     # 1️⃣ Check if the VPN container is running
     if ! docker ps --format "{{.Names}}" | grep -q "$VPN_CONTAINER"; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN container ($VPN_CONTAINER) is not running"
+        MSG="VPN container ($VPN_CONTAINER) is not running."
         echo -e "[VPN]: $STATUS - $MSG"
         return
     fi
 
-    # 2️⃣ Check if VPN tunnel interface exists
+    # 2️⃣ Check if VPN tunnel exists
     VPN_TUNNEL=$(docker exec "$VPN_CONTAINER" ip a | grep tun0)
-
     if [[ -z "$VPN_TUNNEL" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN tunnel (tun0) is missing in the container"
+        MSG="VPN tunnel (tun0) is missing in the container."
         echo -e "[VPN]: $STATUS - $MSG"
         return
     fi
@@ -129,44 +80,46 @@ check_vpn() {
 
     if [[ "$HOST_IP" == "$VPN_IP" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN is NOT working! External IP is still the same as the host ($HOST_IP)"
+        MSG="VPN is NOT working! External IP is still the same as the host ($HOST_IP)."
         echo -e "[VPN]: $STATUS - $MSG"
         return
     fi
 
-    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN is running, External IP: $VPN_IP"
+    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN is running, External IP: $VPN_IP."
 
     # 4️⃣ Test VPN connectivity
     if ! docker exec "$VPN_CONTAINER" ping -c 1 8.8.8.8 >/dev/null 2>&1; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="VPN is up but cannot reach external internet"
+        MSG="VPN is up but cannot reach external internet."
         echo -e "[VPN]: $STATUS - $MSG"
         return
     fi
 
-    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working"
+    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working."
 }
 
 check_server_health() {
     CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
     RAM_USAGE=$(free | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
     DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | tr -d '%')
-    LOAD_AVG=$(uptime | awk -F 'load average:' '{print $2}' | awk '{print $1}')
-    TEMP=$(sensors | awk '/^Package id 0:/ {print $4}')
 
-    STATUS="$GREEN Everything is running smoothly $RESET"
-    
+    STATUS="${GREEN}OK${RESET}"
+    MSG="Everything is running smoothly."
+
     if (( $(echo "$CPU_USAGE > 80" | bc -l) )); then
-        STATUS="$ORANGE Minor issue - High CPU usage: ${CPU_USAGE}% $RESET"
+        STATUS="${ORANGE}WARNING${RESET}"
+        MSG="High CPU usage: ${CPU_USAGE}%."
     fi
     if (( $(echo "$RAM_USAGE > 85" | bc -l) )); then
-        STATUS="$ORANGE Minor issue - High RAM usage: ${RAM_USAGE}% $RESET"
+        STATUS="${ORANGE}WARNING${RESET}"
+        MSG="High RAM usage: ${RAM_USAGE}%."
     fi
     if (( DISK_USAGE > 90 )); then
-        STATUS="$RED Critical issue - Low disk space: ${DISK_USAGE}% used $RESET"
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="Low disk space: ${DISK_USAGE}% used."
     fi
 
-    echo -e "[Server Health]: $STATUS"
+    echo -e "[Server Health]: $STATUS - $MSG"
 }
 
 check_service_status() {
@@ -175,13 +128,15 @@ check_service_status() {
     DESCRIPTION=$3
 
     if pgrep -x "$PROCESS_NAME" > /dev/null; then
-        echo -e "[$SERVICE_NAME]: $GREEN Everything is running smoothly $RESET"
+        echo -e "[$SERVICE_NAME]: ${GREEN}OK${RESET} - $DESCRIPTION is running."
     else
-        echo -e "[$SERVICE_NAME]: $RED Critical issue - $DESCRIPTION is not running $RESET"
+        echo -e "[$SERVICE_NAME]: ${RED}CRITICAL${RESET} - $DESCRIPTION is not running."
     fi
 }
-# Run Nginx check
+
+# Run checks
 check_nginx
 check_vpn
 check_server_health
-check_service_status
+check_service_status "Plex" "Plex Media Server" "Plex process"
+check_service_status "Deluge" "deluged" "Deluge torrent client"
