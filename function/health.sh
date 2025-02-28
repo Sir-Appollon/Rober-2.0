@@ -113,12 +113,11 @@ check_nginx() {
     # 2. Validate Nginx configuration
     NGINX_CONFIG_CHECK=$(nginx -t 2>&1)
     if [[ $? -ne 0 ]]; then
-     STATUS="${RED}CRITICAL${RESET}"
-     MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
-     echo -e "[Nginx]: $STATUS - $MSG"
-     return
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
+        echo -e "[Nginx]: $STATUS - $MSG"
+        return
     fi
-
 
     # 3. Check if Nginx is listening on expected ports
     HTTP_PORT=$(netstat -tulnp | grep ":80 " | grep nginx)
@@ -133,16 +132,16 @@ check_nginx() {
 
     # 4. Check SSL Certificate expiration
     SSL_EXPIRY=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
-    
+
     if [[ -z "$SSL_EXPIRY" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Failed to retrieve SSL certificate for $DOMAIN"
     else
         EXPIRY_DATE=$(date -d "$SSL_EXPIRY" +%s)
         CURRENT_DATE=$(date +%s)
-        DAYS_LEFT=$(( (EXPIRY_DATE - CURRENT_DATE) / 86400 ))
+        DAYS_LEFT=$(( (EXPIRY_DATE - CURRENT_DATE) / 86400 ))  # Ensure integer division
 
-        if [[ $DAYS_LEFT -le 7 ]]; then
+        if (( DAYS_LEFT <= 7 )); then
             STATUS="${ORANGE}MINOR ISSUE${RESET}"
             MSG="SSL certificate for $DOMAIN is expiring in $DAYS_LEFT days"
         fi
@@ -158,6 +157,7 @@ check_nginx() {
 
     echo -e "[Nginx]: $STATUS - $MSG"
 }
+
 
 # Run checks
 check_server_health
