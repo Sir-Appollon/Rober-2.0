@@ -82,8 +82,15 @@ check_nginx() {
         fi
     fi
 
-    # 5️⃣ Check if the external URL is accessible
-    HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$DOMAIN)
+    # 5️⃣ Check if the external URL is accessible (Use Plex Token for authentication)
+    if [[ -z "$PLEX_TOKEN" ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="PLEX_TOKEN is missing from .env. Cannot check external access."
+        echo -e "[Nginx]: $STATUS - $MSG"
+        return
+    fi
+
+    HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN?X-Plex-Token=$PLEX_TOKEN")
 
     if [[ "$HTTP_RESPONSE" -ne 200 ]]; then
         STATUS="${RED}CRITICAL${RESET}"
