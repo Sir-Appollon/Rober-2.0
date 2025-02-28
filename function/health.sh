@@ -17,6 +17,7 @@ RESET="\e[0m"
 
 # Define Nginx container name and domain
 NGINX_CONTAINER="nginx-proxy"
+VPN_CONTAINER="vpn"
 DOMAIN="robert2-0.duckdns.org"
 
 check_nginx() {
