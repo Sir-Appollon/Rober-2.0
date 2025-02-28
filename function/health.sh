@@ -21,7 +21,8 @@ VPN_CONTAINER="vpn"
 
 # Load Plex domain from .env
 PLEX_LOCAL_URL="http://localhost:32400/web"
-PLEX_REMOTE_URL="https://$DOMAIN/web"
+PLEX_REMOTE_URL="https://robert2-0.duckdns.org/web"
+
 
 check_web_status() {
     STATUS="${GREEN}OK${RESET}"
