@@ -19,6 +19,44 @@ RESET="\e[0m"
 NGINX_CONTAINER="nginx-proxy"
 VPN_CONTAINER="vpn"
 
+# List of required open ports (Web UIs, SSH, Plex - but NOT 32400 since Nginx manages it)
+REQUIRED_PORTS=(22 53 80 443 631 7878 8112 8191 8989 9091 9117 32401 32600 36487 44075 61209)
+
+check_network() {
+    STATUS="${GREEN}OK${RESET}"
+    MSG="Network connectivity is stable."
+
+    # Check if key ports are open
+    OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
+
+    # Find unnecessary open ports
+    UNNECESSARY_PORTS=()
+    for port in $OPEN_PORTS; do
+        if [[ ! " ${REQUIRED_PORTS[@]} " =~ " ${port} " ]]; then
+            UNNECESSARY_PORTS+=("$port")
+        fi
+    done
+
+    # Test internet connectivity
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        echo -e "[Network]: $STATUS - Internet connectivity is fine."
+    else
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="No internet connectivity."
+        echo -e "[Network]: $STATUS - $MSG"
+        return
+    fi
+
+    # Show unnecessary open ports if any
+    if [[ ${#UNNECESSARY_PORTS[@]} -gt 0 ]]; then
+        STATUS="${ORANGE}WARNING${RESET}"
+        MSG="Unnecessary open ports detected: ${UNNECESSARY_PORTS[*]}"
+        echo -e "[Network]: $STATUS - $MSG"
+    else
+        echo -e "[Network]: ${GREEN}OK${RESET} - Only necessary ports are open."
+    fi
+}
+
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Nginx is running smoothly."
@@ -113,26 +151,6 @@ check_docker_health() {
     fi
 
     echo -e "[Docker Health]: $STATUS - $MSG"
-}
-
-check_network() {
-    STATUS="${GREEN}OK${RESET}"
-    MSG="Network connectivity is stable."
-
-    # Check if key ports are open
-    OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
-    
-    # Test internet connectivity
-    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
-        echo -e "[Network]: $STATUS - Internet connectivity is fine."
-    else
-        STATUS="${RED}CRITICAL${RESET}"
-        MSG="No internet connectivity."
-        echo -e "[Network]: $STATUS - $MSG"
-        return
-    fi
-
-    echo -e "[Network]: $STATUS - Open Ports: $OPEN_PORTS"
 }
 
 check_server_health() {
