@@ -3,6 +3,8 @@ check_nginx() {
     MSG="Everything is running smoothly"
     DOMAIN="robert2-0.duckdns.org"
     CONFIG_PATH="/etc/nginx/conf.d/nginx.conf"  # Path inside the container
+    NGINX_CONTAINER="nginx-proxy"  # Make sure this is correctly set!
+
 
     # 1. Check if the Docker container is running
     if ! docker ps --format "{{.Names}}" | grep -q "$NGINX_CONTAINER"; then
