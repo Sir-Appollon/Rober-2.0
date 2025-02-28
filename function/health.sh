@@ -15,14 +15,21 @@ ORANGE="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
 
-# Define container names from .env if available
+# Define container names
 NGINX_CONTAINER="nginx-proxy"
 VPN_CONTAINER="vpn"
 
-# Load Plex domain from .env
+# Hardcoded Plex URLs instead of using `.env`
 PLEX_LOCAL_URL="http://localhost:32400/web"
 PLEX_REMOTE_URL="https://robert2-0.duckdns.org/web"
 
+### **🕒 Display Date and Time**
+echo -e "\n\033[1m$(date '+%Y-%m-%d %H:%M:%S')\033[0m"
+
+### **⚠️ Warn If Not Running as Root**
+if [[ $EUID -ne 0 ]]; then
+    echo -e "\e[33mWARNING: This script is not running with sudo/root. Some elements may not be available.\e[0m"
+fi
 
 check_web_status() {
     STATUS="${GREEN}OK${RESET}"
@@ -55,8 +62,8 @@ check_network() {
 
     # Check if key ports are open
     REQUIRED_PORTS=(22 53 80 443 631 7878 8112 8191 8989 9091 9117 32401 32600 36487 44075 61209)
-    OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
-    
+    OPEN_PORTS=$(netstat -tulnp 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
+
     # Find unnecessary open ports
     UNNECESSARY_PORTS=()
     for port in $OPEN_PORTS; do
@@ -103,9 +110,9 @@ check_docker_health() {
 }
 
 check_server_health() {
-    CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
-    RAM_USAGE=$(free | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
-    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | tr -d '%')
+    CPU_USAGE=$(top -bn1 2>/dev/null | grep "Cpu(s)" | awk '{print $2 + $4}')
+    RAM_USAGE=$(free 2>/dev/null | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
+    DISK_USAGE=$(df -h 2>/dev/null | awk 'NR==2 {print $5}' | tr -d '%')
 
     STATUS="${GREEN}OK${RESET}"
     MSG="Everything is running smoothly."
