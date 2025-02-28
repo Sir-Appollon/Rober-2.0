@@ -1,23 +1,3 @@
-#!/bin/bash
-
-# Load environment variables from .env file
-ENV_FILE="$(dirname "$0")/../.env"  # Assumes .env is at {ROOT}
-if [[ -f "$ENV_FILE" ]]; then
-    export $(grep -v '^#' "$ENV_FILE" | xargs)
-else
-    echo -e "[Error]: ${RED}CRITICAL${RESET} - .env file not found. Please create it with ROOT path."
-    exit 1
-fi
-
-# Color codes for status
-GREEN="\e[32m"
-ORANGE="\e[33m"
-RED="\e[31m"
-RESET="\e[0m"
-
-# Docker container name for Nginx
-NGINX_CONTAINER="nginx-proxy"
-
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Everything is running smoothly"
@@ -32,9 +12,12 @@ check_nginx() {
         return
     fi
 
-    # 2. Validate Nginx configuration inside the container
-    NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t -c "$CONFIG_PATH" 2>&1)
-    if [[ $? -ne 0 ]]; then
+    # 2. Validate Nginx configuration inside the container (ignore warnings)
+    NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t 2>&1)
+    
+    if echo "$NGINX_CONFIG_CHECK" | grep -q "test is successful"; then
+        echo -e "[Nginx]: ${GREEN}OK${RESET} - Nginx configuration is valid"
+    else
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
         echo -e "[Nginx]: $STATUS - $MSG"
