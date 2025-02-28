@@ -122,21 +122,7 @@ check_server_health() {
     echo -e "[Server Health]: $STATUS - $MSG"
 }
 
-check_service_status() {
-    SERVICE_NAME=$1
-    PROCESS_NAME=$2
-    DESCRIPTION=$3
-
-    if pgrep -x "$PROCESS_NAME" > /dev/null; then
-        echo -e "[$SERVICE_NAME]: ${GREEN}OK${RESET} - $DESCRIPTION is running."
-    else
-        echo -e "[$SERVICE_NAME]: ${RED}CRITICAL${RESET} - $DESCRIPTION is not running."
-    fi
-}
-
 # Run checks
 check_nginx
 check_vpn
 check_server_health
-check_service_status "Plex" "Plex Media Server" "Plex process"
-check_service_status "Deluge" "deluged" "Deluge torrent client"
