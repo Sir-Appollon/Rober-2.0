@@ -28,7 +28,7 @@ check_web_status() {
     MSG="Plex is available locally and via the web."
 
     # 1️⃣ Check if Plex is available locally
-    LOCAL_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$PLEX_LOCAL_URL")
+    LOCAL_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L "$PLEX_LOCAL_URL/index.html")
     if [[ "$LOCAL_RESPONSE" -ne 200 ]]; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Plex is NOT accessible locally (Response: $LOCAL_RESPONSE)."
