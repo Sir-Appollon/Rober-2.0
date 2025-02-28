@@ -83,9 +83,9 @@ check_nginx() {
     fi
 
     # 5️⃣ Check if the external URL is accessible (Use Plex Token for authentication)
-    if [[ -z "$PLEX_TOKEN" ]]; then
+    if [[ -z "$PLEX_CLAIM" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="PLEX_TOKEN is missing from .env. Cannot check external access."
+        MSG="PLEX_CLAIM is missing from .env. Cannot check external access."
         echo -e "[Nginx]: $STATUS - $MSG"
         return
     fi
