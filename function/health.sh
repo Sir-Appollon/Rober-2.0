@@ -1,106 +1,25 @@
 #!/bin/bash
 
-# Color codes
+# Load environment variables from .env file
+ENV_FILE="$(dirname "$0")/../.env"  # Assumes .env is at {ROOT}
+if [[ -f "$ENV_FILE" ]]; then
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+else
+    echo -e "[Error]: ${RED}CRITICAL${RESET} - .env file not found. Please create it with ROOT path."
+    exit 1
+fi
+
+# Color codes for status
 GREEN="\e[32m"
 ORANGE="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
 
-check_server_health() {
-    CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
-    RAM_USAGE=$(free | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
-    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | tr -d '%')
-    LOAD_AVG=$(uptime | awk -F 'load average:' '{print $2}' | awk '{print $1}')
-    TEMP=$(sensors | awk '/^Package id 0:/ {print $4}')
-
-    STATUS="$GREEN Everything is running smoothly $RESET"
-    
-    if (( $(echo "$CPU_USAGE > 80" | bc -l) )); then
-        STATUS="$ORANGE Minor issue - High CPU usage: ${CPU_USAGE}% $RESET"
-    fi
-    if (( $(echo "$RAM_USAGE > 85" | bc -l) )); then
-        STATUS="$ORANGE Minor issue - High RAM usage: ${RAM_USAGE}% $RESET"
-    fi
-    if (( DISK_USAGE > 90 )); then
-        STATUS="$RED Critical issue - Low disk space: ${DISK_USAGE}% used $RESET"
-    fi
-
-    echo -e "[Server Health]: $STATUS"
-}
-
-check_service_status() {
-    SERVICE_NAME=$1
-    PROCESS_NAME=$2
-    DESCRIPTION=$3
-
-    if pgrep -x "$PROCESS_NAME" > /dev/null; then
-        echo -e "[$SERVICE_NAME]: $GREEN Everything is running smoothly $RESET"
-    else
-        echo -e "[$SERVICE_NAME]: $RED Critical issue - $DESCRIPTION is not running $RESET"
-    fi
-}
-
-check_web_status() {
-    SERVICE_NAME=$1
-    URL=$2
-
-    if curl -s --head --request GET $URL | grep "200 OK" > /dev/null; then
-        echo -e "[$SERVICE_NAME]: $GREEN Web UI is responsive $RESET"
-    else
-        echo -e "[$SERVICE_NAME]: $RED Critical issue - Web UI is not responding $RESET"
-    fi
-}
-
-check_docker_health() {
-    CONTAINER_HEALTH=$(docker ps --format "{{.Names}} {{.State}}" | grep -E 'Restarting|Exited')
-
-    if [ -z "$CONTAINER_HEALTH" ]; then
-        echo -e "[Docker Health]: $GREEN Everything is running smoothly $RESET"
-    else
-        echo -e "[Docker Health]: $RED Critical issue - Some containers are in Restarting/Exited state: $CONTAINER_HEALTH $RESET"
-    fi
-}
-
-check_vpn_status() {
-    VPN_CONTAINER="vpn"
-    EXTERNAL_IP=$(curl -s ifconfig.me)
-
-    if docker ps --format "{{.Names}}" | grep -q "$VPN_CONTAINER"; then
-        echo -e "[VPN Status]: $GREEN VPN container is running $RESET"
-        echo -e "[VPN Status]: External IP: $EXTERNAL_IP"
-    else
-        echo -e "[VPN Status]: $RED Critical issue - VPN container is not running $RESET"
-    fi
-}
-
-check_deluge_status() {
-    if docker ps --format "{{.Names}}" | grep -q "deluge"; then
-        echo -e "[Deluge Status]: $GREEN Deluge container is running $RESET"
-        STALLED_TORRENTS=$(docker exec deluge deluge-console info | grep "State: Stalled" | wc -l)
-        if [ "$STALLED_TORRENTS" -gt 0 ]; then
-            echo -e "[Deluge Status]: $ORANGE Minor issue - $STALLED_TORRENTS stalled torrents detected $RESET"
-        fi
-    else
-        echo -e "[Deluge Status]: $RED Critical issue - Deluge container is not running $RESET"
-    fi
-}
-
-check_network() {
-    OPEN_PORTS=$(netstat -tulnp | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | sort -n | uniq)
-    INTERNET_TEST=$(ping -c 1 8.8.8.8 &> /dev/null && echo "Online" || echo "Offline")
-
-    echo -e "[Network Traffic]: Open Ports: $OPEN_PORTS"
-    if [ "$INTERNET_TEST" = "Online" ]; then
-        echo -e "[Network Traffic]: $GREEN Internet connectivity is fine $RESET"
-    else
-        echo -e "[Network Traffic]: $RED Critical issue - No internet connectivity $RESET"
-    fi
-}
-
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Everything is running smoothly"
     DOMAIN="robert2-0.duckdns.org"
+    CONFIG_PATH="${ROOT}/config/nginx/Plexconf/nginx.conf"  # Dynamic path
 
     # 1. Check if Nginx process is running
     if ! pgrep -x "nginx" > /dev/null; then
@@ -110,8 +29,8 @@ check_nginx() {
         return
     fi
 
-    # 2. Validate Nginx configuration
-    NGINX_CONFIG_CHECK=$(nginx -t 2>&1)
+    # 2. Validate Nginx configuration using the dynamic path
+    NGINX_CONFIG_CHECK=$(nginx -t -c "$CONFIG_PATH" 2>&1)
     if [[ $? -ne 0 ]]; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
@@ -158,13 +77,5 @@ check_nginx() {
     echo -e "[Nginx]: $STATUS - $MSG"
 }
 
-
-# Run checks
-check_server_health
-check_service_status "Plex" "Plex Media Server" "Plex process"
-check_web_status "Plex Web UI" "http://localhost:32400/web/index.html"
-check_vpn_status
-check_deluge_status
-check_docker_health
-check_network
+# Run Nginx check
 check_nginx
