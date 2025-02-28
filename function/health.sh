@@ -15,22 +15,25 @@ ORANGE="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
 
+# Docker container name for Nginx
+NGINX_CONTAINER="nginx-proxy"
+
 check_nginx() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Everything is running smoothly"
     DOMAIN="robert2-0.duckdns.org"
-    CONFIG_PATH="${ROOT}/config/nginx/Plexconf/nginx.conf"  # Dynamic path
+    CONFIG_PATH="/etc/nginx/conf.d/nginx.conf"  # Path inside the container
 
-    # 1. Check if Nginx process is running
-    if ! pgrep -x "nginx" > /dev/null; then
+    # 1. Check if the Docker container is running
+    if ! docker ps --format "{{.Names}}" | grep -q "$NGINX_CONTAINER"; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="Nginx is not running"
+        MSG="Nginx container ($NGINX_CONTAINER) is not running"
         echo -e "[Nginx]: $STATUS - $MSG"
         return
     fi
 
-    # 2. Validate Nginx configuration using the dynamic path
-    NGINX_CONFIG_CHECK=$(nginx -t -c "$CONFIG_PATH" 2>&1)
+    # 2. Validate Nginx configuration inside the container
+    NGINX_CONFIG_CHECK=$(docker exec "$NGINX_CONTAINER" nginx -t -c "$CONFIG_PATH" 2>&1)
     if [[ $? -ne 0 ]]; then
         STATUS="${RED}CRITICAL${RESET}"
         MSG="Nginx configuration error: $(echo "$NGINX_CONFIG_CHECK" | tail -n 1)"
@@ -39,8 +42,8 @@ check_nginx() {
     fi
 
     # 3. Check if Nginx is listening on expected ports
-    HTTP_PORT=$(netstat -tulnp | grep ":80 " | grep nginx)
-    HTTPS_PORT=$(netstat -tulnp | grep ":443 " | grep nginx)
+    HTTP_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":80 " | grep nginx)
+    HTTPS_PORT=$(docker exec "$NGINX_CONTAINER" netstat -tulnp | grep ":443 " | grep nginx)
 
     if [[ -z "$HTTP_PORT" && -z "$HTTPS_PORT" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
@@ -49,16 +52,17 @@ check_nginx() {
         return
     fi
 
-    # 4. Check SSL Certificate expiration
-    SSL_EXPIRY=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
+    # 4. Check SSL Certificate expiration inside the container
+    SSL_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    SSL_EXPIRY=$(docker exec "$NGINX_CONTAINER" openssl x509 -enddate -noout -in "$SSL_PATH" 2>/dev/null | cut -d= -f2)
 
     if [[ -z "$SSL_EXPIRY" ]]; then
         STATUS="${RED}CRITICAL${RESET}"
-        MSG="Failed to retrieve SSL certificate for $DOMAIN"
+        MSG="Failed to retrieve SSL certificate for $DOMAIN inside the container"
     else
         EXPIRY_DATE=$(date -d "$SSL_EXPIRY" +%s)
         CURRENT_DATE=$(date +%s)
-        DAYS_LEFT=$(( (EXPIRY_DATE - CURRENT_DATE) / 86400 ))  # Ensure integer division
+        DAYS_LEFT=$(( (EXPIRY_DATE - CURRENT_DATE) / 86400 ))
 
         if (( DAYS_LEFT <= 7 )); then
             STATUS="${ORANGE}MINOR ISSUE${RESET}"
