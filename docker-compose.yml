@@ -104,7 +104,7 @@ services:
     container_name: nginx-proxy
     image: nginx:alpine
     restart: unless-stopped
-    network_mode: host  # NGINX will use the host network
+    network_mode: host # NGINX will use the host network
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -116,7 +116,7 @@ services:
       - /etc/letsencrypt/live:/etc/letsencrypt/live
       - /etc/letsencrypt/archive:/etc/letsencrypt/archive
       - /etc/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
-      
+
   flaresolverr:
     container_name: flaresolverr
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -128,11 +128,3 @@ services:
     ports:
       - 8191:8191
     restart: unless-stopped
-  health:
-    image: alpine
-    container_name: health
-    volumes:
-      - ${ROOT}/function:/scripts
-      - ${ROOT}/log:/log
-    command: ["sh", "-c", "sh /scripts/health.sh >> /log/health.log 2>&1 && sleep 300"]
-    restart: always
