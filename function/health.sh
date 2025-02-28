@@ -100,5 +100,53 @@ check_nginx() {
     echo -e "[Nginx]: $STATUS - $MSG"
 }
 
+check_vpn() {
+    STATUS="${GREEN}OK${RESET}"
+    MSG="VPN is running smoothly"
+
+    # 1️⃣ Check if the VPN container is running
+    if ! docker ps --format "{{.Names}}" | grep -q "$VPN_CONTAINER"; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="VPN container ($VPN_CONTAINER) is not running"
+        echo -e "[VPN]: $STATUS - $MSG"
+        return
+    fi
+
+    # 2️⃣ Check if VPN tunnel interface exists
+    VPN_TUNNEL=$(docker exec "$VPN_CONTAINER" ip a | grep tun0)
+
+    if [[ -z "$VPN_TUNNEL" ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="VPN tunnel (tun0) is missing in the container"
+        echo -e "[VPN]: $STATUS - $MSG"
+        return
+    fi
+
+    # 3️⃣ Check external IP (should NOT match host IP)
+    HOST_IP=$(curl -s https://ipinfo.io/ip)
+    VPN_IP=$(docker exec "$VPN_CONTAINER" curl -s https://ipinfo.io/ip)
+
+    if [[ "$HOST_IP" == "$VPN_IP" ]]; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="VPN is NOT working! External IP is still the same as the host ($HOST_IP)"
+        echo -e "[VPN]: $STATUS - $MSG"
+        return
+    fi
+
+    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN is running, External IP: $VPN_IP"
+
+    # 4️⃣ Test VPN connectivity
+    if ! docker exec "$VPN_CONTAINER" ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        STATUS="${RED}CRITICAL${RESET}"
+        MSG="VPN is up but cannot reach external internet"
+        echo -e "[VPN]: $STATUS - $MSG"
+        return
+    fi
+
+    echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working"
+}
+
+
 # Run Nginx check
 check_nginx
+check_vpn
