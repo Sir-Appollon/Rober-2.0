@@ -147,7 +147,41 @@ check_vpn() {
     echo -e "[VPN]: ${GREEN}OK${RESET} - VPN connection is working"
 }
 
+check_server_health() {
+    CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
+    RAM_USAGE=$(free | awk '/Mem:/ {printf "%.2f", $3/$2 * 100}')
+    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | tr -d '%')
+    LOAD_AVG=$(uptime | awk -F 'load average:' '{print $2}' | awk '{print $1}')
+    TEMP=$(sensors | awk '/^Package id 0:/ {print $4}')
 
+    STATUS="$GREEN Everything is running smoothly $RESET"
+    
+    if (( $(echo "$CPU_USAGE > 80" | bc -l) )); then
+        STATUS="$ORANGE Minor issue - High CPU usage: ${CPU_USAGE}% $RESET"
+    fi
+    if (( $(echo "$RAM_USAGE > 85" | bc -l) )); then
+        STATUS="$ORANGE Minor issue - High RAM usage: ${RAM_USAGE}% $RESET"
+    fi
+    if (( DISK_USAGE > 90 )); then
+        STATUS="$RED Critical issue - Low disk space: ${DISK_USAGE}% used $RESET"
+    fi
+
+    echo -e "[Server Health]: $STATUS"
+}
+
+check_service_status() {
+    SERVICE_NAME=$1
+    PROCESS_NAME=$2
+    DESCRIPTION=$3
+
+    if pgrep -x "$PROCESS_NAME" > /dev/null; then
+        echo -e "[$SERVICE_NAME]: $GREEN Everything is running smoothly $RESET"
+    else
+        echo -e "[$SERVICE_NAME]: $RED Critical issue - $DESCRIPTION is not running $RESET"
+    fi
+}
 # Run Nginx check
 check_nginx
 check_vpn
+check_server_health
+check_service_status
