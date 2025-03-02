@@ -31,6 +31,60 @@ if [[ $EUID -ne 0 ]]; then
     echo -e "\e[33mWARNING: This script is not running with sudo/root. Some elements may not be available.\e[0m"
 fi
 
+check_plex_process() {
+    if docker ps --format "{{.Names}}" | grep -q "$PLEX_CONTAINER"; then
+        echo -e "[Plex]: ${GREEN}OK${RESET} - Plex process is running."
+    else
+        echo -e "[Plex]: ${RED}CRITICAL${RESET} - Plex process is not running!"
+    fi
+}
+
+check_plex_database() {
+    DB_PATH="/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db"
+    
+    DB_CHECK=$(docker exec "$PLEX_CONTAINER" sqlite3 "$DB_PATH" "PRAGMA integrity_check;" 2>/dev/null)
+    
+    if [[ "$DB_CHECK" == "ok" ]]; then
+        echo -e "[Plex]: ${GREEN}OK${RESET} - Plex database is healthy."
+    else
+        echo -e "[Plex]: ${RED}CRITICAL${RESET} - Plex database is corrupted!"
+    fi
+}
+
+check_plex_library_updates() {
+    LAST_UPDATE=$(docker exec "$PLEX_CONTAINER" stat -c %Y "/config/Library/Application Support/Plex Media Server/Logs/Plex Media Scanner.log" 2>/dev/null)
+    CURRENT_TIME=$(date +%s)
+    TIME_DIFF=$(( (CURRENT_TIME - LAST_UPDATE) / 3600 ))
+
+    if [[ $TIME_DIFF -gt 24 ]]; then
+        echo -e "[Plex]: ${ORANGE}WARNING${RESET} - Plex library has not been updated in over 24 hours."
+    else
+        echo -e "[Plex]: ${GREEN}OK${RESET} - Plex library was updated recently."
+    fi
+}
+
+check_plex_transcoding_load() {
+    TRANSCODE_CPU=$(docker exec "$PLEX_CONTAINER" top -bn1 | grep "Plex Transcoder" | awk '{cpu += $9} END {print cpu}')
+    
+    if [[ -z "$TRANSCODE_CPU" ]]; then
+        echo -e "[Plex]: ${GREEN}OK${RESET} - No active transcoding."
+    elif (( $(echo "$TRANSCODE_CPU > 80" | bc -l) )); then
+        echo -e "[Plex]: ${ORANGE}WARNING${RESET} - High CPU usage due to transcoding (${TRANSCODE_CPU}%)."
+    else
+        echo -e "[Plex]: ${GREEN}OK${RESET} - Transcoding load is normal (${TRANSCODE_CPU}%)."
+    fi
+}
+
+check_active_plex_streams() {
+    STREAM_COUNT=$(docker exec "$PLEX_CONTAINER" curl -s "http://localhost:32400/status/sessions" | grep -o "<MediaContainer.*size=\"[0-9]*\"" | grep -o "[0-9]*")
+
+    if [[ -z "$STREAM_COUNT" || "$STREAM_COUNT" -eq 0 ]]; then
+        echo -e "[Plex]: ${GREEN}OK${RESET} - No active streams."
+    else
+        echo -e "[Plex]: ${GREEN}OK${RESET} - $STREAM_COUNT active stream(s) detected."
+    fi
+}
+
 check_web_status() {
     STATUS="${GREEN}OK${RESET}"
     MSG="Plex is available locally and via the web."
@@ -133,8 +187,10 @@ check_server_health() {
     echo -e "[Server Health]: $STATUS - $MSG"
 }
 
-# Run checks
+# Run Plex-specific checks
+check_plex_process
+check_plex_database
+check_plex_library_updates
+check_plex_transcoding_load
+check_active_plex_streams
 check_web_status
-check_docker_health
-check_network
-check_server_health
