@@ -65,15 +65,15 @@ check_plex_library_updates() {
 }
 
 check_plex_transcoding_load() {
-    TRANSCODE_CPU=$(docker exec "$PLEX_CONTAINER" top -bn1 | grep "Plex Transcoder" | awk '{cpu += $9} END {print cpu}')
-    
-    if [[ -z "$TRANSCODE_CPU" ]]; then
+    TRANSCODE_PROCESS=$(docker exec "$PLEX_CONTAINER" ps aux | grep "Plex Transcoder" | grep -v grep)
+
+    if [[ -z "$TRANSCODE_PROCESS" ]]; then
         echo -e "[Plex]: ${GREEN}OK${RESET} - No active transcoding."
-    elif (( $(echo "$TRANSCODE_CPU > 80" | bc -l) )); then
-        echo -e "[Plex]: ${ORANGE}WARNING${RESET} - High CPU usage due to transcoding (${TRANSCODE_CPU}%)."
     else
-        echo -e "[Plex]: ${GREEN}OK${RESET} - Transcoding load is normal (${TRANSCODE_CPU}%)."
+        TRANSCODE_COUNT=$(echo "$TRANSCODE_PROCESS" | wc -l)
+        echo -e "[Plex]: ${GREEN}OK${RESET} - Transcoding is active: $TRANSCODE_COUNT session(s)."
     fi
+
 }
 
 check_active_plex_streams() {
