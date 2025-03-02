@@ -18,6 +18,7 @@ RESET="\e[0m"
 # Define container names
 NGINX_CONTAINER="nginx-proxy"
 VPN_CONTAINER="vpn"
+PLEX_CONTAINER="plex-server"
 
 # Hardcoded Plex URLs instead of using `.env`
 PLEX_LOCAL_URL="http://localhost:32400/web"
