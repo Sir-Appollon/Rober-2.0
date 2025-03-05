@@ -5,29 +5,22 @@ services:
     env_file: .env
     cap_add:
       - NET_ADMIN
+    security_opt:
+      - label=disable
     devices:
       - /dev/net/tun
     environment:
       - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
       - OPENVPN_CONFIG=${OPENVPN_CONFIG}
       - LOCAL_NETWORK=${LOCAL_NETWORK}
+      - KILL_SWITCH=on
     ports:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
-    #  - 9117:9117 # Jackett Web UI
-    #  - 8191:8191 # flaresolverr Web UI
-    #  - 9696:9696 # Prowlarr web UI
-    #  - 32400:32400 # Plex Web UI
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
-    # healthcheck:
-    #   test: [ "CMD", "curl", "-f", "https://ipinfo.io/ip" ]
-    #   interval: 1m30s
-    #   timeout: 30s
-    #   retries: 5
-    #   start_period: 30s
   deluge:
     container_name: deluge
     image: linuxserver/deluge:latest
