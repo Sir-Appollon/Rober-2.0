@@ -195,3 +195,6 @@ check_plex_library_updates
 check_plex_transcoding_load
 check_active_plex_streams
 check_web_status
+check_server_health
+check_docker_health
+check_network
