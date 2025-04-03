@@ -14,8 +14,10 @@ services:
       - OPENVPN_CONFIG=${OPENVPN_CONFIG}
       - LOCAL_NETWORK=${LOCAL_NETWORK}
       - KILL_SWITCH=on
-  #  sysctls:
-  #    - net.ipv6.conf.all.disable_ipv6=1
+      - UFW_ALLOW_GW_NET=true
+      - VPN_DISABLE_IPV6=true
+    #  sysctls:
+    #    - net.ipv6.conf.all.disable_ipv6=1
     ports:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
