@@ -29,7 +29,7 @@ sudo certbot certonly --standalone \
   --work-dir "$ROOT/config/nginx/letsencrypt/tmp" \
   --logs-dir "$ROOT/config/nginx/letsencrypt/log" \
   -d "$CLEAN_DOMAIN" \
-  --email "paul.emilejen@gmail.com" \  # ← remplace ici aussi si tu veux automatiser
+  --email "paul.emilejen@gmail.com" \
   --agree-tos \
   --non-interactive
 
