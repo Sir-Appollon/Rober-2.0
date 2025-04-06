@@ -1,9 +1,14 @@
 #!/bin/bash
 
 # 1. Load .env from project root (relative to script)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$SCRIPT_DIR/../.."  # remonte 2 niveaux depuis config/nginx/
-ENV_FILE="$PROJECT_ROOT/.env"
+# 1. Load environment variables from .env file
+ENV_FILE="$(dirname "$0")/../.env"
+if [[ -f "$ENV_FILE" ]]; then
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+else
+    echo -e "[Error]: \e[31mCRITICAL\e[0m - .env file not found. Please create it at project ROOT."
+    exit 1
+fi
 
 if [[ -f "$ENV_FILE" ]]; then
     export $(grep -v '^#' "$ENV_FILE" | xargs)
