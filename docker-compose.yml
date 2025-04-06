@@ -109,14 +109,30 @@ services:
       - /mnt/media/downloads:/mnt/media/downloads # download folder
 
   # NGINX Proxy Manager (remplace l'ancien nginx)
-  npm:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: npm
+  #npm:
+  #  image: jc21/nginx-proxy-manager:latest
+  #  container_name: npm
+  #  restart: unless-stopped
+  #  ports:
+  #    - 80:80 # HTTP
+  #    - 81:81 # NPM Web UI
+  #    - 443:443 # HTTPS
+  #  volumes:
+  #    - ${ROOT}/config/npm/data:/data
+  #    - ${ROOT}/config/npm/letsencrypt:/etc/letsencrypt
+  nginx:
+    container_name: nginx-proxy
+    image: nginx:alpine
     restart: unless-stopped
-    ports:
-      - 80:80 # HTTP
-      - 81:81 # NPM Web UI
-      - 443:443 # HTTPS
+    network_mode: host # NGINX will use the host network
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
     volumes:
-      - ${ROOT}/config/npm/data:/data
-      - ${ROOT}/config/npm/letsencrypt:/etc/letsencrypt
+      - ${ROOT}/proxy/logs:/var/log/nginx
+      - ${ROOT}/config/nginx/Plexconf:/etc/nginx/conf.d # Store Plex config here
+      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # For HTTPS (later)
+      - ${ROOT}/config/nginx/letsencrypt/live:/etc/letsencrypt/live
+      - ${ROOT}/config/nginx/letsencrypt/archive:/etc/letsencrypt/archive
+      - ${ROOT}/config/nginx/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
