@@ -124,11 +124,14 @@ services:
     container_name: nginx-proxy
     image: nginx:alpine
     restart: unless-stopped
-    network_mode: host # NGINX will use the host network
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+    ports:
+      - 80:80 # HTTP
+      - 81:81 # NPM Web UI
+      - 443:443 # HTTPS
     volumes:
       - ${ROOT}/proxy/logs:/var/log/nginx
       - ${ROOT}/config/nginx/Plexconf:/etc/nginx/conf.d # Store Plex config here
