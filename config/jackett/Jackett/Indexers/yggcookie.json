@@ -1,0 +1,110 @@
+[
+  {
+    "id": "sitelink",
+    "type": "inputstring",
+    "name": "Site Link",
+    "value": "https://www.yggtorrent.top/"
+  },
+  {
+    "id": "cookieheader",
+    "type": "hiddendata",
+    "name": "CookieHeader",
+    "value": "cf_clearance=bm0.jvNbtMmc5A3tOEL2Gow6K7AMIIZ5BS35r9_eDmY-1743646838-1.2.1.1-B7oxZIqzabZmrUSyBPeyj4WTiH53hWMpcLumjI7nyyJgXV357P_oQZpddSGoLcpeA2OxPZWsse.3hUIt3.KdkRLEhxkFcW5YeqF9nd8rfsU3G.kIRutD_958lot3hJOnjw4CaLTYmgv_mgw1T_iql8nPxVqTHFEr8DTQVKpsWREfB1e317Jh7JYZFfJJxUw7UyyXUUOxmhcUo.ai3CVWAITjZ1xkTd9_TetjXSI.5G05YrtT2sLMKGtUOZ.gRT74RozIqPLu32qBT9wSVeWvLvlyUZWR35_5G9Cmne8VaxDg8pXReaAVrvkyuKnNFyU8Dp.6ewNl7MCK210zTt2VkHGi7aROAACGSaKGuMzG4sdROXx8FPjZaDVC5.VVYPVw; ygg_=%2Cb3qhvioZj1tgVWnE90Tz8bcgdnx0Ndv3L3iEUoWvQm5F%2C6L; account_created=true; v92_promo_details=eyJjb3VudGRvd25fZGF0ZSI6IjA0LzIvMjAyNSAyMzo1OTo1OSIsInRzIjoxNzQzNjUyNzk5fQ=="
+  },
+  {
+    "id": "lasterror",
+    "type": "hiddendata",
+    "name": "LastError",
+    "value": null
+  },
+  {
+    "id": "cookie",
+    "type": "inputstring",
+    "name": "Cookie",
+    "value": "cf_clearance=bm0.jvNbtMmc5A3tOEL2Gow6K7AMIIZ5BS35r9_eDmY-1743646838-1.2.1.1-B7oxZIqzabZmrUSyBPeyj4WTiH53hWMpcLumjI7nyyJgXV357P_oQZpddSGoLcpeA2OxPZWsse.3hUIt3.KdkRLEhxkFcW5YeqF9nd8rfsU3G.kIRutD_958lot3hJOnjw4CaLTYmgv_mgw1T_iql8nPxVqTHFEr8DTQVKpsWREfB1e317Jh7JYZFfJJxUw7UyyXUUOxmhcUo.ai3CVWAITjZ1xkTd9_TetjXSI.5G05YrtT2sLMKGtUOZ.gRT74RozIqPLu32qBT9wSVeWvLvlyUZWR35_5G9Cmne8VaxDg8pXReaAVrvkyuKnNFyU8Dp.6ewNl7MCK210zTt2VkHGi7aROAACGSaKGuMzG4sdROXx8FPjZaDVC5.VVYPVw; ygg_=P4bfw-3Yzl2%2CIY6R1eLNpvZjcBr7Lje65d0v0OJfSELvpx0s; account_created=true; v92_promo_details=eyJjb3VudGRvd25fZGF0ZSI6IjA0LzIvMjAyNSAyMzo1OTo1OSIsInRzIjoxNzQzNjUyNzk5fQ=="
+  },
+  {
+    "id": "user-agent",
+    "type": "inputstring",
+    "name": "User-Agent",
+    "value": " Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+  },
+  {
+    "id": "replacemultibyanotherlanguageinreleasename",
+    "type": "inputbool",
+    "name": "Replace MULTi by another language in release name",
+    "value": false
+  },
+  {
+    "id": "replacemultibythislanguage",
+    "type": "inputselect",
+    "name": "Replace MULTi by this language",
+    "value": "FRENCH",
+    "options": {
+      "FRENCH": "FRENCH",
+      "MULTi.FRENCH": "MULTi.FRENCH",
+      "ENGLISH": "ENGLISH",
+      "MULTi.ENGLISH": "MULTi.ENGLISH",
+      "VOSTFR": "VOSTFR",
+      "MULTi.VOSTFR": "MULTi.VOSTFR"
+    }
+  },
+  {
+    "id": "replacevostfrandsubfrenchwithenglish",
+    "type": "inputbool",
+    "name": "Replace VOSTFR and SUBFRENCH with ENGLISH",
+    "value": false
+  },
+  {
+    "id": "normalizereleasenamesbymovingyearafterthetitle",
+    "type": "inputbool",
+    "name": "Normalize release names by moving year after the title",
+    "value": false
+  },
+  {
+    "id": "stripseasononly(e.g.s01)fromsearches,astrackerdoesnotsupportpartialmatches",
+    "type": "inputbool",
+    "name": "Strip season only (e.g. S01) from searches, as tracker does not support partial matches",
+    "value": true
+  },
+  {
+    "id": "enhancesonarrcompatibilitywithanimebyrenamingepisodes(xxx>exxx).candisturbmoviessearch(e.g.backtothefuture3>backtothefuturee3).",
+    "type": "inputbool",
+    "name": "Enhance Sonarr compatibility with anime by renaming episodes (xxx > Exxx). Can disturb movies search (e.g. Back To The Future 3 > Back To The Future E3).",
+    "value": false
+  },
+  {
+    "id": "extendthesonarrcompatibilitywithanimeupto4digits.thiswillbreakallsearchesandresulttitleswhichcontainyears.",
+    "type": "inputbool",
+    "name": "Extend the Sonarr compatibility with anime up to 4 digits. This WILL break all searches and result titles which contain years.",
+    "value": false
+  },
+  {
+    "id": "sortrequestedfromsite",
+    "type": "inputselect",
+    "name": "Sort requested from site",
+    "value": "publish_date",
+    "options": {
+      "publish_date": "created",
+      "seed": "seeders",
+      "size": "size",
+      "name": "title"
+    }
+  },
+  {
+    "id": "orderrequestedfromsite",
+    "type": "inputselect",
+    "name": "Order requested from site",
+    "value": "desc",
+    "options": {
+      "desc": "desc",
+      "asc": "asc"
+    }
+  },
+  {
+    "id": "tags",
+    "type": "inputtags",
+    "name": "Tags",
+    "value": ""
+  }
+]

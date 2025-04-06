@@ -1,0 +1,80 @@
+[
+  {
+    "id": "sitelink",
+    "type": "inputstring",
+    "name": "Site Link",
+    "value": "https://rutracker.org/"
+  },
+  {
+    "id": "usemagnetlinks",
+    "type": "inputbool",
+    "name": "Use Magnet Links",
+    "value": false
+  },
+  {
+    "id": "striprussianletters",
+    "type": "inputbool",
+    "name": "Strip Russian Letters",
+    "value": true
+  },
+  {
+    "id": "addrustoendofalltitlestoimprovelanguagedetectionbysonarrandradarr.willcauseenglish-onlyresultstobemisidentified.",
+    "type": "inputbool",
+    "name": "Add RUS to end of all titles to improve language detection by Sonarr and Radarr. Will cause English-only results to be misidentified.",
+    "value": false
+  },
+  {
+    "id": "movefirsttagstoendofreleasetitle",
+    "type": "inputbool",
+    "name": "Move first tags to end of release title",
+    "value": false
+  },
+  {
+    "id": "movealltagstoendofreleasetitle",
+    "type": "inputbool",
+    "name": "Move all tags to end of release title",
+    "value": false
+  },
+  {
+    "id": "username",
+    "type": "inputstring",
+    "name": "Username",
+    "value": "Roberrt-2-0"
+  },
+  {
+    "id": "password",
+    "type": "inputstring",
+    "name": "Password",
+    "value": "CfDJ8OzToJO_gXBHm_7NJ-F4Bzo6N3xgBhs60ydLh-yC6CBilbArKptL-jCc3xhlTE7ITBT0PZ26Gvopqfs8baPa8IqZgzWm2jUXQc4KUHM5Kn086lad5ZDuO_C4WPrPnwBCFA"
+  },
+  {
+    "id": "captchatext",
+    "type": "inputstring",
+    "name": "Captcha Text",
+    "value": ""
+  },
+  {
+    "id": "captchacookie",
+    "type": "hiddendata",
+    "name": "Captcha Cookie",
+    "value": null
+  },
+  {
+    "id": "cookieheader",
+    "type": "hiddendata",
+    "name": "CookieHeader",
+    "value": "bb_ssl=1; bb_session=0-52633622-30LzrXwwTXdJlBoCa7rD; bb_mark_read=deleted; bb_t=deleted; bb_f=deleted"
+  },
+  {
+    "id": "lasterror",
+    "type": "hiddendata",
+    "name": "LastError",
+    "value": null
+  },
+  {
+    "id": "tags",
+    "type": "inputtags",
+    "name": "Tags",
+    "value": ""
+  }
+]
