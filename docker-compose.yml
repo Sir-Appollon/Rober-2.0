@@ -111,6 +111,7 @@ services:
     image: jc21/nginx-proxy-manager:latest
     container_name: npm
     restart: unless-stopped
+    network_mode: host
     ports:
       - 80:80 # HTTP
       - 81:81 # NPM Web UI
