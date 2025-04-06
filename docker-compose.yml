@@ -66,6 +66,8 @@ services:
     environment:
       - TZ=${TZ}
       - PLEX_CLAIM=${PLEX_CLAIM}
+    ports:
+      - 32400:32400
     volumes:
       - ${ROOT}/config/plex/db:/config
       - ${ROOT}/config/plex/transcode:/transcode
