@@ -62,7 +62,7 @@ services:
     container_name: plex-server
     image: plexinc/pms-docker:latest
     restart: unless-stopped
-    network_mode: host
+    #network_mode: host
     environment:
       - TZ=${TZ}
       - PLEX_CLAIM=${PLEX_CLAIM}
