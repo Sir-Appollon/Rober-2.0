@@ -88,11 +88,12 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
+    volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/sonarr:/config
-      - /mnt/media/tv:/tv # TV Show folder 
-      - /mnt/media/extra:/mnt/media/extra # Extra folder 
-      - /mnt/media/downloads:/mnt/media/downloads # download folder
+      - ${ROOT}/config/radarr:/config
+      - /mnt/media/tv:/tv
+      - /mnt/media/extra:/mnt/media/extra
+      - /mnt/media/extra/downloads:/downloads
 
   # Radarr
   radarr:
@@ -107,9 +108,9 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${ROOT}/config/radarr:/config
-      - /mnt/media/movies:/movies # Movie folder 
-      - /mnt/media/extra:/mnt/media/extra # Extra folder 
-      - /mnt/media/downloads:/mnt/media/downloads # download folder
+      - /mnt/media/movies:/movies
+      - /mnt/media/extra:/mnt/media/extra
+      - /mnt/media/extra/downloads:/downloads
 
   # NGINX Proxy Manager (remplace l'ancien nginx)
   #npm:
