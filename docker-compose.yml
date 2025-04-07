@@ -74,6 +74,8 @@ services:
       - ${ROOT}/config/plex/transcode:/transcode
       - /mnt/media:/mnt/media # media library
       - /mnt/media/extra:/mnt/media/extra # extra media library
+    devices:
+      - /dev/dri:/dev/dri
 
   # Sonarr
   sonarr:
