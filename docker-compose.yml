@@ -36,7 +36,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - /mnt/media/extra/downloads:/mnt/media/extra/downloads # extra media library
+      - /mnt/media/extra/downloads:/downloads # extra media library
       - ${ROOT}/config/deluge:/config
     depends_on:
       - vpn
