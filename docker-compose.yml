@@ -108,20 +108,6 @@ services:
       - /mnt/media/downloads:/mnt/media/downloads
     restart: unless-stopped
 
-  watchlistarr:
-    container_name: watchlistarr
-    image: ghcr.io/morpheus65535/watchlistarr:latest
-    restart: unless-stopped
-    ports:
-      - 5800:5800 # Web UI
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
-    volumes:
-      - ${ROOT}/config/watchlistarr:/config
-
-
   ### --- Web Reverse Proxy (NGINX) --- ###
 
   nginx:
