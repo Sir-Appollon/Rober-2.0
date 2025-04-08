@@ -130,18 +130,6 @@ services:
 
   ### --- Monitoring Stack --- ###
 
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ${ROOT}/config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    networks:
-      - monitoring
-    restart: unless-stopped
-
   grafana:
     image: grafana/grafana
     container_name: grafana
@@ -152,52 +140,3 @@ services:
     networks:
       - monitoring
     restart: unless-stopped
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    ports:
-      - "8080:8080"
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  node-exporter:
-    image: prom/node-exporter
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  snmp-exporter:
-    image: prom/snmp-exporter
-    container_name: snmp-exporter
-    ports:
-      - "9116:9116"
-    volumes:
-      - ${ROOT}/config/snmp:/etc/snmp_exporter
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  speedtest-exporter:
-    image: miguelndecarvalho/speedtest-exporter
-    container_name: speedtest-exporter
-    ports:
-      - "9798:9798"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-networks:
-  monitoring:
-
-volumes:
-  prometheus-data:
-  grafana-storage:
