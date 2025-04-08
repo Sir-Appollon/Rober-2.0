@@ -191,8 +191,9 @@ services:
     restart: unless-stopped
 
   plex-exporter:
-    image: munnerz/plex_exporter
+    image: markusve/plex-media-server-exporter
     container_name: plex-exporter
+    restart: unless-stopped
     environment:
       - PLEX_TOKEN=${PLEX_TOKEN}
       - PLEX_SERVER=${PLEX_SERVER}
@@ -200,7 +201,6 @@ services:
       - "9594:9594"
     networks:
       - monitoring
-    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus
