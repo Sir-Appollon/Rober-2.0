@@ -139,6 +139,18 @@ services:
       - monitoring
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ${ROOT}/config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+
 networks:
   monitoring:
     driver: bridge
