@@ -38,6 +38,7 @@ services:
     volumes:
       - /mnt/media/extra/downloads:/mnt/media/extra/downloads
       - ${ROOT}/config/deluge:/config
+      - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
     depends_on:
       - vpn
     restart: always
