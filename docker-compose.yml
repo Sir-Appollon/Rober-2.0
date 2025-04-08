@@ -162,7 +162,6 @@ services:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - monitoring
     restart: unless-stopped
@@ -172,18 +171,6 @@ services:
     container_name: node-exporter
     ports:
       - "9100:9100"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  ping-exporter:
-    image: czerwonk/ping_exporter
-    container_name: ping-exporter
-    command:
-      - '--ping.interval=30s'
-      - '--ping.targets=192.168.1.1,192.168.3.1,1.1.1.1'
-    ports:
-      - "9427:9427"
     networks:
       - monitoring
     restart: unless-stopped
