@@ -167,6 +167,39 @@ services:
       - monitoring
     restart: unless-stopped
 
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  ping-exporter:
+    image: czerwonk/ping_exporter
+    container_name: ping-exporter
+    command:
+      - '--ping.interval=30s'
+      - '--ping.targets=192.168.1.1,192.168.3.1,1.1.1.1'
+    ports:
+      - "9427:9427"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  plex-exporter:
+    image: markusve/plex-media-server-exporter
+    container_name: plex-exporter
+    restart: unless-stopped
+    environment:
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - PLEX_SERVER=${PLEX_SERVER}
+    ports:
+      - "9594:9594"
+    networks:
+      - monitoring
+
 networks:
   monitoring:
 
