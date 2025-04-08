@@ -110,7 +110,7 @@ services:
 
   watchlistarr:
     container_name: watchlistarr
-    image: ghcr.io/ghcr.io/morpheus65535/watchlistarr:latest
+    image: ghcr.io/morpheus65535/watchlistarr:latest
     restart: unless-stopped
     ports:
       - 5800:5800 # Web UI
