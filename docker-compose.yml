@@ -1,6 +1,9 @@
+version: '3.8'
+
 services:
 
-  # VPN + Transmission + Deluge
+  ### --- VPN & Download Stack --- ###
+
   vpn:
     image: haugene/transmission-openvpn
     container_name: vpn
@@ -27,78 +30,56 @@ services:
     restart: unless-stopped
 
   deluge:
-    container_name: deluge
     image: linuxserver/deluge:latest
-    restart: always
+    container_name: deluge
     network_mode: service:vpn
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - /mnt/media/extra/downloads:/downloads # extra media library
+      - /mnt/media/extra/downloads:/mnt/media/extra/downloads
       - ${ROOT}/config/deluge:/config
     depends_on:
       - vpn
+    restart: always
 
-  # Jackett
   jackett:
-    container_name: jackett
     image: linuxserver/jackett:latest
-    restart: unless-stopped
-    network_mode: host
+    container_name: jackett
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-    #ports:
-    #  - 9117:9117
+    ports:
+      - 9117:9117
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${ROOT}/downloads/torrent-blackhole:/downloads
       - ${ROOT}/config/jackett:/config
-
-  # Plex Media Server
-  plex-server:
-    container_name: plex-server
-    image: plexinc/pms-docker:latest
     restart: unless-stopped
+
+  ### --- Media Server --- ###
+
+  plex-server:
+    image: plexinc/pms-docker:latest
+    container_name: plex-server
     network_mode: host
     environment:
       - TZ=${TZ}
       - PLEX_CLAIM=${PLEX_CLAIM}
-    #ports:
-    #  - 32400:32400
     volumes:
       - ${ROOT}/config/plex/db:/config
       - ${ROOT}/config/plex/transcode:/transcode
-      - /mnt/media:/mnt/media # media library
-      - /mnt/media/extra:/mnt/media/extra # extra media library
+      - /mnt/media:/mnt/media
+      - /mnt/media/extra:/mnt/media/extra
     devices:
       - /dev/dri:/dev/dri
-
-  # Sonarr
-  sonarr:
-    container_name: sonarr
-    image: linuxserver/sonarr:latest
     restart: unless-stopped
-    network_mode: host
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/sonarr:/config
-      - /mnt/media/tv:/tv
-      - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/extra/downloads:/downloads
 
-  # Radarr
   radarr:
-    container_name: radarr
     image: linuxserver/radarr:latest
-    restart: unless-stopped
+    container_name: radarr
     network_mode: host
     environment:
       - PUID=${PUID}
@@ -109,24 +90,30 @@ services:
       - ${ROOT}/config/radarr:/config
       - /mnt/media/movies:/movies
       - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/extra/downloads:/downloads
-
-  # NGINX Proxy Manager (remplace l'ancien nginx)
-  #npm:
-  #  image: jc21/nginx-proxy-manager:latest
-  #  container_name: npm
-  #  restart: unless-stopped
-  #  ports:
-  #    - 80:80 # HTTP
-  #    - 81:81 # NPM Web UI
-  #    - 443:443 # HTTPS
-  #  volumes:
-  #    - ${ROOT}/config/npm/data:/data
-  #    - ${ROOT}/config/npm/letsencrypt:/etc/letsencrypt
-  nginx:
-    container_name: nginx-proxy
-    image: nginx:alpine
+      - /mnt/media/downloads:/mnt/media/downloads
     restart: unless-stopped
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    container_name: sonarr
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${ROOT}/config/sonarr:/config
+      - /mnt/media/tv:/tv
+      - /mnt/media/extra:/mnt/media/extra
+      - /mnt/media/downloads:/mnt/media/downloads
+    restart: unless-stopped
+
+  ### --- Web Reverse Proxy (NGINX) --- ###
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
     network_mode: host
     environment:
       - PUID=${PUID}
@@ -134,8 +121,123 @@ services:
       - TZ=${TZ}
     volumes:
       - ${ROOT}/proxy/logs:/var/log/nginx
-      - ${ROOT}/config/nginx/Plexconf:/etc/nginx/conf.d # Store Plex config here
-      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate # For HTTPS (later)
+      - ${ROOT}/config/nginx/Plexconf:/etc/nginx/conf.d
+      - ${ROOT}/config/nginx/SSL_certificate:/etc/nginx/SSL_certificate
       - ${ROOT}/config/nginx/letsencrypt/live:/etc/letsencrypt/live
       - ${ROOT}/config/nginx/letsencrypt/archive:/etc/letsencrypt/archive
       - ${ROOT}/config/nginx/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
+    restart: unless-stopped
+
+  ### --- Monitoring Stack --- ###
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  deluge-exporter:
+    image: idlesign/deluge-exporter
+    container_name: deluge-exporter
+    ports:
+      - "9110:9110"
+    environment:
+      - DELUGE_RPC_HOST=deluge
+      - DELUGE_RPC_PORT=58846
+      - DELUGE_RPC_USERNAME=${DELUGE_RPC_USERNAME}
+      - DELUGE_RPC_PASSWORD=${DELUGE_RPC_PASSWORD}
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ${ROOT}/config/grafana:/var/lib/grafana
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  ping-exporter:
+    image: czerwonk/ping_exporter
+    container_name: ping-exporter
+    command:
+      - '--ping.interval=30s'
+      - '--ping.targets=192.168.1.1,192.168.3.1,1.1.1.1'
+    ports:
+      - "9427:9427"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  plex-exporter:
+    image: munnerz/plex_exporter
+    container_name: plex-exporter
+    environment:
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - PLEX_SERVER=${PLEX_SERVER}
+    ports:
+      - "9594:9594"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ${ROOT}/config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  snmp-exporter:
+    image: prom/snmp-exporter
+    container_name: snmp-exporter
+    ports:
+      - "9116:9116"
+    volumes:
+      - ${ROOT}/config/snmp:/etc/snmp_exporter
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  speedtest-exporter:
+    image: miguelndecarvalho/speedtest-exporter
+    container_name: speedtest-exporter
+    ports:
+      - "9798:9798"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+networks:
+  monitoring:
+
+
+volumes:
+  prometheus-data:
+  grafana-storage:
