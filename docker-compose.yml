@@ -151,6 +151,18 @@ services:
     networks:
       - monitoring
 
+  plex-exporter:
+    image: markusve/plex-media-server-exporter
+    container_name: plex-exporter
+    restart: unless-stopped
+    environment:
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - PLEX_SERVER=${PLEX_SERVER}
+    ports:
+      - "9594:9594"
+    networks:
+      - monitoring
+      
 networks:
   monitoring:
     driver: bridge
