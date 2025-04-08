@@ -152,8 +152,7 @@ services:
     environment:
       - DELUGE_RPC_HOST=deluge
       - DELUGE_RPC_PORT=58846
-      - DELUGE_RPC_USERNAME=${DELUGE_RPC_USERNAME}
-      - DELUGE_RPC_PASSWORD=${DELUGE_RPC_PASSWORD}
+      - DELUGE_PASSWORD=${DELUGE_PASSWORD}
     networks:
       - monitoring
     restart: unless-stopped
