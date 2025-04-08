@@ -163,6 +163,16 @@ services:
     networks:
       - monitoring
 
+  deluge-exporter:
+    image: ghcr.io/tobbezcrazymax/prometheus-deluge-exporter
+    container_name: deluge-exporter
+    restart: unless-stopped
+    environment:
+      - DELUGE_URI=http://deluge:8112
+      - DELUGE_PASSWORD=deluge
+    ports:
+      - "9118:9118" 
+
 networks:
   monitoring:
     driver: bridge
