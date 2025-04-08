@@ -152,7 +152,7 @@ services:
       - monitoring
 
   plex-exporter:
-    image: tahoeluke/plex-prometheus-exporter
+    image: jsclayton/plex-prometheus-exporter
     container_name: plex-exporter
     restart: unless-stopped
     environment:
