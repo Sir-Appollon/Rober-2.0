@@ -152,7 +152,7 @@ services:
       - monitoring
 
   plex-exporter:
-    image: jsclayton/plex-prometheus-exporter
+    image: ghcr.io/jsclayton/prometheus-plex-exporter
     container_name: plex-exporter
     restart: unless-stopped
     environment:
