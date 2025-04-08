@@ -88,10 +88,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-    volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/config/radarr:/config
-      - /tv
+      - ${ROOT}/config/sonarr:/config
       - /mnt/media/tv:/tv
       - /mnt/media/extra:/mnt/media/extra
       - /mnt/media/extra/downloads:/downloads
@@ -109,7 +107,6 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${ROOT}/config/radarr:/config
-      - /movies
       - /mnt/media/movies:/movies
       - /mnt/media/extra:/mnt/media/extra
       - /mnt/media/extra/downloads:/downloads
