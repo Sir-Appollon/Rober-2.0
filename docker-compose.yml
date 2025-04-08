@@ -130,29 +130,14 @@ services:
 
   ### --- Monitoring Stack --- ###
 
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
     ports:
-      - "8080:8080"
+      - "9090:9090"
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  deluge-exporter:
-    image: idlesign/deluge-exporter
-    container_name: deluge-exporter
-    ports:
-      - "9110:9110"
-    environment:
-      - DELUGE_RPC_HOST=deluge
-      - DELUGE_RPC_PORT=58846
-      - DELUGE_PASSWORD=${DELUGE_PASSWORD}
+      - ${ROOT}/config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
     networks:
       - monitoring
     restart: unless-stopped
@@ -168,67 +153,16 @@ services:
       - monitoring
     restart: unless-stopped
 
-  node-exporter:
-    image: prom/node-exporter
-    container_name: node-exporter
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
     ports:
-      - "9100:9100"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  ping-exporter:
-    image: czerwonk/ping_exporter
-    container_name: ping-exporter
-    command:
-      - '--ping.interval=30s'
-      - '--ping.targets=192.168.1.1,192.168.3.1,1.1.1.1'
-    ports:
-      - "9427:9427"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  plex-exporter:
-    image: markusve/plex-media-server-exporter
-    container_name: plex-exporter
-    restart: unless-stopped
-    environment:
-      - PLEX_TOKEN=${PLEX_TOKEN}
-      - PLEX_SERVER=${PLEX_SERVER}
-    ports:
-      - "9594:9594"
-    networks:
-      - monitoring
-
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - "9090:9090"
+      - "8080:8080"
     volumes:
-      - ${ROOT}/config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  snmp-exporter:
-    image: prom/snmp-exporter
-    container_name: snmp-exporter
-    ports:
-      - "9116:9116"
-    volumes:
-      - ${ROOT}/config/snmp:/etc/snmp_exporter
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  speedtest-exporter:
-    image: miguelndecarvalho/speedtest-exporter
-    container_name: speedtest-exporter
-    ports:
-      - "9798:9798"
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - monitoring
     restart: unless-stopped
