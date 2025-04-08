@@ -188,18 +188,25 @@ services:
       - monitoring
     restart: unless-stopped
 
-  plex-exporter:
-    image: markusve/plex-media-server-exporter
-    container_name: plex-exporter
-    restart: unless-stopped
-    environment:
-      - PLEX_TOKEN=${PLEX_TOKEN}
-      - PLEX_SERVER=${PLEX_SERVER}
+  snmp-exporter:
+    image: prom/snmp-exporter
+    container_name: snmp-exporter
     ports:
-      - "9594:9594"
+      - "9116:9116"
+    volumes:
+      - ${ROOT}/config/snmp:/etc/snmp_exporter
     networks:
       - monitoring
+    restart: unless-stopped
 
+  speedtest-exporter:
+    image: miguelndecarvalho/speedtest-exporter
+    container_name: speedtest-exporter
+    ports:
+      - "9798:9798"
+    networks:
+      - monitoring
+    restart: unless-stopped
 networks:
   monitoring:
 
