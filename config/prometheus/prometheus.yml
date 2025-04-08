@@ -4,4 +4,4 @@ global:
 scrape_configs:
   - job_name: 'plex'
     static_configs:
-      - targets: ['192.168.3.39:9594']
+      - targets: ['plex-exporter:9594']
