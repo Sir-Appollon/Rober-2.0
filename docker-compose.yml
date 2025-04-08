@@ -159,7 +159,7 @@ services:
       - PLEX_TOKEN=${PLEX_TOKEN}
       - PLEX_SERVER=${PLEX_SERVER}
     ports:
-      - "9594:9594"
+      - "9000:9000"
     networks:
       - monitoring
 
