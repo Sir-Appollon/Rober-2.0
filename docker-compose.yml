@@ -152,7 +152,7 @@ services:
       - monitoring
 
   plex-exporter:
-    image: markusve/plex-media-server-exporter
+    image: tahoeluke/plex-prometheus-exporter
     container_name: plex-exporter
     restart: unless-stopped
     environment:
@@ -162,7 +162,7 @@ services:
       - "9594:9594"
     networks:
       - monitoring
-      
+
 networks:
   monitoring:
     driver: bridge
