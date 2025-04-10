@@ -36,8 +36,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - /mnt/media/extra/downloads:/mnt/media/extra/downloads
       - ${ROOT}/config/deluge:/config
+      - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
     depends_on:
       - vpn
@@ -89,7 +89,7 @@ services:
       - ${ROOT}/config/radarr:/config
       - /mnt/media/movies:/movies
       - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/downloads:/mnt/media/downloads
+      - /mnt/media/extra/downloads:/downloads
     restart: unless-stopped
 
   sonarr:
@@ -105,7 +105,7 @@ services:
       - ${ROOT}/config/sonarr:/config
       - /mnt/media/tv:/tv
       - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/downloads:/mnt/media/downloads
+      - /mnt/media/extra/downloads:/download
     restart: unless-stopped
 
   ### --- Web Reverse Proxy (NGINX) --- ###
