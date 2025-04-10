@@ -42,7 +42,7 @@ services:
     depends_on:
       - vpn
     restart: always
-
+    
   jackett:
     image: linuxserver/jackett:latest
     container_name: jackett
