@@ -42,7 +42,7 @@ services:
     depends_on:
       - vpn
     restart: always
-    
+
   jackett:
     image: linuxserver/jackett:latest
     container_name: jackett
@@ -106,6 +106,21 @@ services:
       - /mnt/media/tv:/tv
       - /mnt/media/extra:/mnt/media/extra
       - /mnt/media/extra/downloads:/downloads
+    restart: unless-stopped
+
+  bazarr:
+    image: linuxserver/bazarr:latest
+    container_name: bazarr
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${ROOT}/config/bazarr:/config
+      - /mnt/media/movies:/movies
+      - /mnt/media/tv:/tv
     restart: unless-stopped
 
   ### --- Web Reverse Proxy (NGINX) --- ###
