@@ -37,6 +37,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${ROOT}/config/deluge:/config
+      - ${ROOT}/scripts:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
     depends_on:
