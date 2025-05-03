@@ -4,15 +4,15 @@
 # Pull updates if not skipped
 if [ "$1" != "--skip-pull" ]; then
     git pull origin main || { echo "[ERROR] Git pull failed"; exit 1; }
-    docker-compose pull || { echo "[ERROR] Docker-compose pull failed"; exit 1; }
+    docker compose pull || { echo "[ERROR] Docker-compose pull failed"; exit 1; }
 fi
 
 # Check if Docker Compose is already running
-if docker-compose ps | grep -q "Up"; then
+if docker compose ps | grep -q "Up"; then
     echo "[INFO] Docker Compose services are already running."
 else
     # Start Docker Compose services
-    docker-compose up -d || { echo "[ERROR] Docker-compose up failed"; exit 1; }
+    docker compose up -d || { echo "[ERROR] Docker-compose up failed"; exit 1; }
 fi
 
 # Get public IP from the host
@@ -27,7 +27,7 @@ VPN_CONTAINER="vpn"
 VPN_IP=$(docker exec $VPN_CONTAINER curl -s ifconfig.me)
 if [ -z "$VPN_IP" ]; then
     echo "[ERROR] Unable to retrieve VPN container IP."
-    docker-compose down
+    docker compose down
     exit 1
 fi
 
@@ -55,6 +55,6 @@ done
 
 if [ "$success" -eq 0 ]; then
     echo "$(date) [VPN:ERROR] All attempts failed. Shutting down..."
-    docker-compose down
+    docker compose down
 fi
 
