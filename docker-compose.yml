@@ -47,7 +47,7 @@ services:
   script-monitoring:
     build: ./scripts
     container_name: script-monitoring
-    command: deluge_control.py
+    command: python deluge_control.py
     network_mode: service:vpn
     depends_on:
       - vpn
