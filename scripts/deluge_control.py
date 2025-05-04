@@ -6,7 +6,9 @@ try:
         torrents = client.call("core.get_torrents_status", {}, ["name"])
         print("📦 Torrents:")
         for torrent_id, info in torrents.items():
-            print(f"- {torrent_id} → {info['name']}")
+            name = info.get("name", "[No name]")
+            print(f"- {torrent_id} → {name}")
+
 except Exception as e:
     print("❌ Connection to Deluge failed:")
     print(e)
