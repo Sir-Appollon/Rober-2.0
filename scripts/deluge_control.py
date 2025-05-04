@@ -14,6 +14,13 @@ try:
         print(f"  External IP: {status.get('external_ip')}")
         print(f"  Download rate: {status.get('download_rate')} B/s")
         print(f"  Upload rate: {status.get('upload_rate')} B/s")
+
+        # Dump all available fields
+        status = client.call("core.get_session_status", [])
+        print("🧩 All session status fields:")
+        for key, value in status.items():
+            print(f"  {key}: {value}")
+
 except Exception as e:
     print("Connection to Deluge failed:")
     print(e)
