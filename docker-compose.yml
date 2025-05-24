@@ -19,6 +19,7 @@ services:
       - KILL_SWITCH=on
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
+    network_mode: host
     ports:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
