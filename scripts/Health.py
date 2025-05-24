@@ -1,22 +1,23 @@
-from dotenv import load_dotenv
 import os
 import subprocess
 import logging
+from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 import psutil
 import speedtest
 from discord_notify import send_discord_message
 
-
-# Try loading the .env file from the Docker container path first
-# This is where the .env is mounted when run inside a container
-# If not found, fallback to the local development path (manual host execution)
+# Load environment variables from container or host
+# Try container path first, fallback to host path
 if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../.env")
 
-# Load the webhook token from the environment after .env has been loaded
-discord_webhook = os.getenv("DISCORD_WEBHOOK")
+# DEBUG: Check loaded critical env variables
+print("[DEBUG] DISCORD_WEBHOOK:", os.getenv("DISCORD_WEBHOOK"))
+print("[DEBUG] PLEX_SERVER:", os.getenv("PLEX_SERVER"))
+print("[DEBUG] PLEX_TOKEN:", os.getenv("PLEX_TOKEN"))
+print("[DEBUG] DELUGE_PASSWORD:", os.getenv("DELUGE_PASSWORD"))
 
 # Configure logging
 log_file = "/mnt/data/service_status.log"
@@ -24,7 +25,7 @@ logging.basicConfig(
     filename=log_file, level=logging.INFO, format="%(asctime)s - %(message)s"
 )
 
-# Load credentials and configuration
+# Load credentials
 deluge_config = {
     "host": "localhost",
     "port": 58846,
@@ -32,13 +33,15 @@ deluge_config = {
     "password": os.getenv("DELUGE_PASSWORD"),
 }
 
-plex_config = {"url": os.getenv("PLEX_SERVER"), "token": os.getenv("PLEX_TOKEN")}
+plex_config = {
+    "url": os.getenv("PLEX_SERVER"),
+    "token": os.getenv("PLEX_TOKEN"),
+}
 
 containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 
-
 def check_docker_running(container):
-    print(f"Checking container: {container} ...")
+    print(f"[DEBUG] Checking container: {container} ...")
     try:
         result = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Running}}", container],
@@ -46,69 +49,63 @@ def check_docker_running(container):
             text=True,
         )
         status = result.stdout.strip() == "true"
-        print(f"{container}: {'OK' if status else 'NOT RUNNING'}")
+        print(f"[DEBUG] {container}: {'OK' if status else 'NOT RUNNING'}")
         return status
     except Exception as e:
-        print(f"{container}: ERROR - {e}")
+        print(f"[DEBUG] {container} ERROR - {e}")
         return False
 
-
 def get_deluge_stats():
-    print("Checking Deluge status ...")
+    print("[DEBUG] Checking Deluge status ...")
     try:
         client = DelugeRPCClient(
             deluge_config["host"],
             deluge_config["port"],
             deluge_config["username"],
             deluge_config["password"],
+            False  # No SSL
         )
         client.connect()
         torrents = client.call("core.get_torrents_status", {}, ["state"])
         downloading = sum(1 for t in torrents.values() if t[b"state"] == b"Downloading")
         seeding = sum(1 for t in torrents.values() if t[b"state"] == b"Seeding")
-        print(f"Deluge OK - Downloading: {downloading}, Seeding: {seeding}")
+        print(f"[DEBUG] Deluge OK - Downloading: {downloading}, Seeding: {seeding}")
         return downloading, seeding
     except Exception as e:
-        print(f"Deluge ERROR - {e}")
+        print(f"[DEBUG] Deluge ERROR - {e}")
         return None, None
 
-
 def get_plex_watchers():
-    print("Checking Plex sessions ...")
+    print("[DEBUG] Checking Plex sessions ...")
     try:
         plex = PlexServer(plex_config["url"], plex_config["token"])
         watchers = len(plex.sessions())
-        print(f"Plex OK - Watchers: {watchers}")
+        print(f"[DEBUG] Plex OK - Watchers: {watchers}")
         return watchers
     except Exception as e:
-        print(f"Plex ERROR - {e}")
+        print(f"[DEBUG] Plex ERROR - {e}")
         return None
 
-
 def get_cpu_usage():
-    print("Checking CPU usage ...")
+    print("[DEBUG] Checking CPU usage ...")
     usage = psutil.cpu_percent(interval=1)
-    print(f"CPU Usage: {usage}%")
+    print(f"[DEBUG] CPU Usage: {usage}%")
     return usage
 
-
 def get_internet_speed():
-    print("Checking Internet speed ...")
+    print("[DEBUG] Checking Internet speed ...")
     try:
         st = speedtest.Speedtest()
         download = st.download() / 1e6
         upload = st.upload() / 1e6
-        print(
-            f"Internet OK - Download: {round(download,2)} Mbps, Upload: {round(upload,2)} Mbps"
-        )
+        print(f"[DEBUG] Internet OK - Download: {round(download, 2)} Mbps, Upload: {round(upload, 2)} Mbps")
         return round(download, 2), round(upload, 2)
     except Exception as e:
-        print(f"Internet Speed ERROR - {e}")
+        print(f"[DEBUG] Internet Speed ERROR - {e}")
         return None, None
 
-
 def log_status():
-    print("Starting health checks ...")
+    print("[DEBUG] Starting health checks ...")
     statuses = {c: check_docker_running(c) for c in containers}
     deluge_down, deluge_seed = get_deluge_stats()
     plex_watchers = get_plex_watchers()
@@ -126,7 +123,7 @@ def log_status():
     }
 
     logging.info(str(log_data))
-    print("Health check completed and logged.")
+    print("[DEBUG] Health check completed and logged.")
 
     message = "\n".join(
         [
@@ -136,18 +133,12 @@ def log_status():
             f"CPU Usage: {cpu}%",
             f"Internet - DL: {dl_speed} Mbps, UL: {ul_speed} Mbps",
             "Docker Status:",
-            "\n".join(
-                [
-                    f" - {name}: {'OK' if state else 'DOWN'}"
-                    for name, state in statuses.items()
-                ]
-            ),
+            "\n".join([f" - {name}: {'OK' if state else 'DOWN'}" for name, state in statuses.items()]),
         ]
     )
 
-    print(f"Sending message to Discord:\n{message}")
+    print(f"[DEBUG] Sending message to Discord:\n{message}")
     send_discord_message(message)
-
 
 if __name__ == "__main__":
     log_status()
