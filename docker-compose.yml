@@ -6,7 +6,6 @@ services:
     image: haugene/transmission-openvpn
     container_name: vpn
     env_file: .env
-    network_mode: service:vpn
     cap_add:
       - NET_ADMIN
     security_opt:
@@ -42,8 +41,8 @@ services:
       - ${ROOT}/scripts:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-   # depends_on:
-   #   - vpn
+    # depends_on:
+    #   - vpn
     restart: always
 
   script-monitoring:
