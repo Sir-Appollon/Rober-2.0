@@ -221,10 +221,10 @@ services:
     build:
       context: ./scripts
       dockerfile: Dockerfile
-   volumes:
-     - ${ROOT}/scripts:/app
-     - ${ROOT}/.env:/app/.env
-     - /mnt/data:/mnt/data
+    volumes:
+      - ${ROOT}/scripts:/app
+      - ${ROOT}/.env:/app/.env
+      - /mnt/data:/mnt/data
     network_mode: host
     command: ["sh", "-c", "python3 /app/Health.py"]
 
