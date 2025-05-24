@@ -212,7 +212,7 @@ services:
       - ${ROOT}/.env:/app/.env
       - /mnt/data:/mnt/data
     network_mode: host
-    command: [ "sh", "-c", "python3 /scripts/Health.py" ]
+    command: [ "sh", "-c", "python3 scripts/Health.py" ]
 
 networks:
   monitoring:
