@@ -27,6 +27,7 @@ def get_vpn_ip():
     else:
         raise RuntimeError("Could not detect VPN IP on tun0 inside container")
 
+
 def update_deluge_ip(new_ip):
     with open(config_path, 'r') as f:
         lines = f.readlines()
