@@ -2,8 +2,9 @@
 
 import subprocess
 import time
+import re
 
-config_path = "../config/deluge/core.conf"  # Replace with actual path
+config_path = "../config/deluge/core.conf"
 
 def stop_deluge():
     subprocess.run(["docker", "stop", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -15,8 +16,13 @@ def is_deluge_running():
     result = subprocess.run(["docker", "ps", "-q", "-f", "name=deluge"], capture_output=True, text=True)
     return result.stdout.strip() != ""
 
-def ask_for_ip():
-    return input("Enter new VPN IP: ").strip()
+def get_vpn_ip():
+    result = subprocess.run(["ip", "addr", "show", "tun0"], capture_output=True, text=True)
+    match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+    if match:
+        return match.group(1)
+    else:
+        raise RuntimeError("Could not detect VPN IP on tun0")
 
 def update_deluge_ip(new_ip):
     with open(config_path, 'r') as f:
@@ -37,7 +43,7 @@ if __name__ == "__main__":
         stop_deluge()
         time.sleep(2)
 
-    ip = ask_for_ip()
+    ip = get_vpn_ip()
     update_deluge_ip(ip)
-    print(f"Updated Deluge config with IP {ip}. Starting Deluge...")
+    print(f"Updated Deluge config with VPN IP {ip}. Starting Deluge...")
     start_deluge()
