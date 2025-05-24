@@ -9,8 +9,11 @@ import speedtest
 from discord_notify import send_discord_message
 
 
-# Load environment variables from ../.env
-load_dotenv(dotenv_path="../.env")
+# Try loading the .env file from the Docker container path first
+# This is where the .env is mounted when run inside a container
+# If not found, fallback to the local development path (manual host execution)
+if not load_dotenv(dotenv_path="/app/.env"):
+    load_dotenv(dotenv_path="../.env")
 
 # Configure logging
 log_file = "/mnt/data/service_status.log"
