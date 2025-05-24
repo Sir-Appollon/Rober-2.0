@@ -203,19 +203,32 @@ services:
     volumes:
       - '/:/host:ro,rslave'
 
+  # health:
+  #   build:
+  #     context: ./scripts
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ${ROOT}/.env
+  #   network_mode: host
+  #   volumes:
+  #     - ${ROOT}/scripts:/app
+  #     - /mnt/data:/mnt/data
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   restart: unless-stopped
+  #   command: [ "sh", "-c", "while true; do python Health.py; sleep 300; done" ]
+
   health:
     build:
       context: ./scripts
       dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
+   volumes:
+     - ${ROOT}/scripts:/app
+     - ${ROOT}/.env:/app/.env
+     - /mnt/data:/mnt/data
     network_mode: host
-    volumes:
-      - ${ROOT}/scripts:/app
-      - /mnt/data:/mnt/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-    command: [ "sh", "-c", "while true; do python Health.py; sleep 300; done" ]
+    command: ["sh", "-c", "python3 /app/Health.py"]
+
+
 
 networks:
   monitoring:
