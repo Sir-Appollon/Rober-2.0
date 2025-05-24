@@ -229,6 +229,14 @@ services:
     network_mode: host
     command: ["sh", "-c", "python3 /app/Health.py"]
 
+  listener:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    volumes:
+      - ${ROOT}/scripts:/app
+      - ${ROOT}/.env:/app/.env
+    command: ["python3", "/app/health_listener.py"]
 
 
 networks:

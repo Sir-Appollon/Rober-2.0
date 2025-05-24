@@ -4,3 +4,4 @@ deluge-client
 plexapi
 psutil
 speedtest-cli
+discord.py
