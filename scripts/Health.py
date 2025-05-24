@@ -15,6 +15,9 @@ from discord_notify import send_discord_message
 if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../.env")
 
+# Load the webhook token from the environment after .env has been loaded
+discord_webhook = os.getenv("DISCORD_WEBHOOK")
+
 # Configure logging
 log_file = "/mnt/data/service_status.log"
 logging.basicConfig(
