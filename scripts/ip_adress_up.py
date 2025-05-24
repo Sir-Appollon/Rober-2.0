@@ -17,12 +17,15 @@ def is_deluge_running():
     return result.stdout.strip() != ""
 
 def get_vpn_ip():
-    result = subprocess.run(["ip", "addr", "show", "tun0"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
+        capture_output=True, text=True
+    )
     match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
     if match:
         return match.group(1)
     else:
-        raise RuntimeError("Could not detect VPN IP on tun0")
+        raise RuntimeError("Could not detect VPN IP on tun0 inside container")
 
 def update_deluge_ip(new_ip):
     with open(config_path, 'r') as f:
