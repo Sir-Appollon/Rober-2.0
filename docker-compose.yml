@@ -217,16 +217,16 @@ services:
   #   restart: unless-stopped
   #   command: [ "sh", "-c", "while true; do python Health.py; sleep 300; done" ]
 
-  # health:
-  #   build:
-  #     context: ./scripts
-  #     dockerfile: Dockerfile
-  #   volumes:
-  #     - ${ROOT}/scripts:/app
-  #     - ${ROOT}/.env:/app/.env
-  #     - /mnt/data:/mnt/data
-  #   network_mode: host
-  #   command: ["sh", "-c", "python3 /app/Health.py"]
+  health:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    volumes:
+      - ${ROOT}/scripts:/app
+      - ${ROOT}/.env:/app/.env
+      - /mnt/data:/mnt/data
+    network_mode: host
+    command: ["sh", "-c", "python3 /app/Health.py"]
 
 
 
