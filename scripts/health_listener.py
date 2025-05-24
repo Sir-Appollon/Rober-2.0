@@ -1,28 +1,23 @@
-import os
 import subprocess
 import discord
 from discord.ext import commands
+import os
 from dotenv import load_dotenv
 
-# Load environment variables from common Docker and host paths
-# Try container path first, fallback to local path
-if not load_dotenv(dotenv_path="/app/.env"):
-    load_dotenv(dotenv_path="../.env")
+# Load environment variables from container or host path
+if not load_dotenv("/app/.env"):
+    load_dotenv("../.env")
 
-# Load Discord bot token and channel ID
+# Get token and channel ID from environment
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID")
 
-print("[DEBUG] DISCORD_BOT_TOKEN loaded:", TOKEN is not None)
-print("[DEBUG] DISCORD_CHANNEL_ID loaded:", CHANNEL_ID)
-
-# Validate environment variables
-if TOKEN is None or CHANNEL_ID is None:
-    raise RuntimeError("Missing DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID in environment")
+if not TOKEN or not CHANNEL_ID:
+    raise RuntimeError("Missing DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID in .env")
 
 CHANNEL_ID = int(CHANNEL_ID)
 
-# Create bot with message content intent
+# Set up bot with message content intent
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -34,7 +29,9 @@ async def on_ready():
 @bot.command(name="health")
 async def run_health(ctx):
     if ctx.channel.id != CHANNEL_ID:
+        print(f"[DEBUG] Ignored command from channel: {ctx.channel.id}")
         return
+
     await ctx.send("Running health check...")
 
     try:
@@ -44,8 +41,17 @@ async def run_health(ctx):
             text=True,
             timeout=60
         )
-        output = result.stdout.strip() or "[no output]"
-        await ctx.send(f"```{output[:1900]}```")
+        stdout = result.stdout.strip() or "[no stdout]"
+        stderr = result.stderr.strip()
+        report = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}" if stderr else stdout
+
+        if len(report) < 1900:
+            await ctx.send(f"```{report}```")
+        else:
+            import io
+            await ctx.send("Output too long. See attached file.")
+            await ctx.send(file=discord.File(fp=io.StringIO(report), filename="health_report.txt"))
+
     except Exception as e:
         await ctx.send(f"Health check failed: {e}")
 
