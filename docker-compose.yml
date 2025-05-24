@@ -209,6 +209,7 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ${ROOT}/.env
+    network_mode: host
     volumes:
       - ${ROOT}/scripts:/app
       - /mnt/data:/mnt/data
