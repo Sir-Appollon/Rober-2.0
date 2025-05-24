@@ -6,6 +6,8 @@ from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 import psutil
 import speedtest
+from discord_notify import send_discord_message
+
 
 # Load environment variables from ../.env
 load_dotenv(dotenv_path="../.env")

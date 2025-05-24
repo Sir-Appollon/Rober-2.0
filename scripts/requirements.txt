@@ -1,0 +1,6 @@
+python-dotenv
+requests
+deluge-client
+plexapi
+psutil
+speedtest-cli

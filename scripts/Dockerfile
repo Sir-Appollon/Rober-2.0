@@ -1,9 +1,8 @@
 FROM python:3.10-slim
 
 WORKDIR /app
-
 COPY . .
 
-RUN pip install deluge-client 
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "deluge_control.py"]
+CMD ["python", "Health.py"]
