@@ -42,8 +42,8 @@ services:
       - ${ROOT}/scripts:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-    depends_on:
-      - vpn
+   # depends_on:
+   #   - vpn
     restart: always
 
   script-monitoring:
