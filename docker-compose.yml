@@ -215,7 +215,7 @@ services:
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
-    command: ["sh", "-c", "while true; do python Health.py; sleep 300; done"]
+    command: [ "sh", "-c", "while true; do python Health.py; sleep 300; done" ]
 
 networks:
   monitoring:
