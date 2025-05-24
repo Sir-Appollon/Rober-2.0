@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-import json
 import subprocess
 import time
-import os
 
-config_path = "../config/deluge/core.conf"  # Replace with actual path
+config_path = "../pat/conmf.."  # Replace with actual path
 
 def stop_deluge():
     subprocess.run(["docker", "stop", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -22,13 +20,16 @@ def ask_for_ip():
 
 def update_deluge_ip(new_ip):
     with open(config_path, 'r') as f:
-        config = json.load(f)
-
-    config['listen_interface'] = new_ip
-    config['outgoing_interface'] = new_ip
+        lines = f.readlines()
 
     with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2)
+        for line in lines:
+            if '"listen_interface"' in line:
+                f.write(f'  "listen_interface": "{new_ip}",\n')
+            elif '"outgoing_interface"' in line:
+                f.write(f'  "outgoing_interface": "{new_ip}",\n')
+            else:
+                f.write(line)
 
 if __name__ == "__main__":
     if is_deluge_running():
