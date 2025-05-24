@@ -108,5 +108,18 @@ def log_status():
     logging.info(str(log_data))
     print("Health check completed and logged.")
 
+    message = "\n".join([
+        "**[Health Report]**",
+        f"Plex Watchers: {plex_watchers}",
+        f"Deluge - Downloading: {deluge_down}, Seeding: {deluge_seed}",
+        f"CPU Usage: {cpu}%",
+        f"Internet - DL: {dl_speed} Mbps, UL: {ul_speed} Mbps",
+        "Docker Status:",
+        "\n".join([f" - {name}: {'OK' if state else 'DOWN'}" for name, state in statuses.items()])
+    ])
+
+    print(f"Sending message to Discord:\n{message}")
+    send_discord_message(message)
+
 if __name__ == "__main__":
     log_status()
