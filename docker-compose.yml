@@ -225,7 +225,7 @@ services:
       - ${ROOT}/scripts:/app
       - ${ROOT}/.env:/app/.env
       - /mnt/data:/mnt/data
-    network_mode: service:host
+    network_mode: host
     command: ["sh", "-c", "python3 /app/Health.py"]
 
 
