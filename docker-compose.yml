@@ -6,6 +6,7 @@ services:
     image: haugene/transmission-openvpn
     container_name: vpn
     env_file: .env
+    network_mode: service:vpn
     cap_add:
       - NET_ADMIN
     security_opt:
@@ -19,11 +20,10 @@ services:
       - KILL_SWITCH=on
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
-    network_mode: host
     ports:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
-      - 58846:58846   # Deluge RPC
+      - 58846:58846 # Deluge RPC
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
