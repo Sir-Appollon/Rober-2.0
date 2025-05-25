@@ -52,10 +52,11 @@ debug(f"Total downloaded: {status.total_download} bytes")
 debug(f"Number of peers: {status.num_peers}")
 
 # Output result
-if status.state == lt.torrent_status.seeding or status.total_download > 0:
+if status.num_peers > 0 and status.upload_rate > 0:
     print("SEEDING_CONFIRMED")
 else:
     print("SEEDING_FAILED")
+
 
 # Cleanup
 ses.remove_torrent(h)

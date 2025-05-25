@@ -39,7 +39,7 @@ services:
     volumes:
       - ${ROOT}/config/deluge:/config
       - ${ROOT}/scripts:/seedcheck
-      - ${ROOT}/scripts:/app
+    #  - ${ROOT}/scripts:/app
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
     # depends_on:
