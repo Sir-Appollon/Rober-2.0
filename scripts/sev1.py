@@ -20,6 +20,17 @@ def get_host_ip():
     except:
         return None
 
+def get_vpn_tun_ip():
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
+            capture_output=True, text=True
+        )
+        match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+        return match.group(1) if match else None
+    except:
+        return None
+
 
 # Setup import path for shared modules
 sys.path.append("..")
