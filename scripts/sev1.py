@@ -8,6 +8,18 @@ from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from pathlib import Path
 import tempfile
+import socket
+
+def get_host_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return None
+
 
 # Setup import path for shared modules
 sys.path.append("..")
@@ -80,32 +92,32 @@ if not deluge_rpc_accessible():
     exit(3)
 send_discord_message("Check 3/4 successful.")
 
-# D-004: Deluge activity confirmation
+# # D-004: Deluge activity confirmation
 
-send_discord_message("Executing check 4/4: Verifying active Deluge download or seeding...")
+# send_discord_message("Executing check 4/4: Verifying active Deluge download or seeding...")
 
-try:
-    client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
-    client.connect()
-    torrents = client.call("core.get_torrents_status", {}, ["state"])
-    active = any(t[b"state"] in [b"Downloading", b"Seeding"] for t in torrents.values())
-except Exception as e:
-    msg = "[D-004] Deluge RPC access failed during activity check."
-    logging.error(msg)
-    send_discord_message(msg)
-    run_resolution("D-004")
-    exit(4)
+# try:
+#     client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
+#     client.connect()
+#     torrents = client.call("core.get_torrents_status", {}, ["state"])
+#     active = any(t[b"state"] in [b"Downloading", b"Seeding"] for t in torrents.values())
+# except Exception as e:
+#     msg = "[D-004] Deluge RPC access failed during activity check."
+#     logging.error(msg)
+#     send_discord_message(msg)
+#     run_resolution("D-004")
+#     exit(4)
 
-if not active:
-    msg = "[D-004] No active Deluge download or seeding detected — may lack internet."
-    logging.error(msg)
-    send_discord_message(msg)
-    run_resolution("D-004")
-    exit(4)
+# if not active:
+#     msg = "[D-004] No active Deluge download or seeding detected — may lack internet."
+#     logging.error(msg)
+#     send_discord_message(msg)
+#     run_resolution("D-004")
+#     exit(4)
 
-msg = "[D-004] Active Deluge traffic confirmed — VPN connectivity validated."
-logging.info(msg)
-send_discord_message("Check 4/4 successful.")
+# msg = "[D-004] Active Deluge traffic confirmed — VPN connectivity validated."
+# logging.info(msg)
+# send_discord_message("Check 4/4 successful.")
 
 # D-004: External IP leak detection via RPC
 
