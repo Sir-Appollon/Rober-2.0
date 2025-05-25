@@ -13,11 +13,11 @@ def debug(msg):
 
 def get_vpn_ip():
     try:
-        result = subprocess.run(["ip", "addr", "show", "dev", "tun0"], capture_output=True, text=True)
+        result = subprocess.run(["ip", "route", "get", "1.1.1.1"], capture_output=True, text=True)
         for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.startswith("inet "):
-                return line.split()[1].split("/")[0]
+            parts = line.strip().split()
+            if "src" in parts:
+                return parts[parts.index("src") + 1]
     except:
         return None
 
