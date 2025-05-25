@@ -23,7 +23,7 @@ ses = lt.session()
 params = {
     'save_path': temp,
     'storage_mode': lt.storage_mode_t.storage_mode_sparse,
-    'ti': lt.torrent_info(torrent_path)
+    'ti': lt.torrent_info(str(torrent_path))
 }
 h = ses.add_torrent(params)
 
