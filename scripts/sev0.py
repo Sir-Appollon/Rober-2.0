@@ -98,13 +98,27 @@ def ssl_certificate_valid():
     except:
         return False
 
-ssl_ok = ssl_certificate_valid()
-if not ssl_ok:
+def ssl_certificate_valid():
+    try:
+        hostname = DOMAIN.replace("https://", "").split("/")[0]
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
+            s.settimeout(5)
+            s.connect((hostname, 443))
+            cert = s.getpeercert()
+            if cert:
+                expire_date = cert["notAfter"]
+                return expire_date
+    except:
+        return None
+
+ssl_expiry = ssl_certificate_valid()
+if not ssl_expiry:
     msg = "[P-004] SSL certificate invalid or expired"
     logging.error(msg)
     send_discord_message(msg)
 else:
-    send_discord_message("Check 4/6 successful.")
+    send_discord_message(f"Check 4/6 successful — SSL cert expires: {ssl_expiry}")
 
 # P-005
 send_discord_message("Executing check 5/6: Testing remote Plex accessibility...")
@@ -126,10 +140,16 @@ else:
 send_discord_message("Executing check 6/6: Verifying Nginx configuration...")
 def nginx_config_valid():
     try:
-        result = subprocess.run(["docker", "exec", "nginx-proxy", "nginx", "-t"],
-                                capture_output=True, text=True)
-        return "syntax is ok" in result.stdout.lower()
-    except:
+        result = subprocess.run(
+            ["docker", "exec", "nginx-proxy", "nginx", "-t"],
+            capture_output=True,
+            text=True
+        )
+        output = result.stdout.lower() + result.stderr.lower()
+        print("[DEBUG] Nginx test output:", output)
+        return "syntax is ok" in output and "test is successful" in output
+    except Exception as e:
+        print(f"[DEBUG] Nginx config check failed: {e}")
         return False
 
 if not nginx_config_valid():
