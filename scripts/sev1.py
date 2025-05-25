@@ -291,9 +291,11 @@ except Exception as e:
 # Inject torrent
 torrent_id = None
 try:
+    if not client.connected:
+        client.connect()
     with open(torrent_file, "rb") as f:
         torrent_data = f.read()
-    torrent_id = client.call("core.add_torrent_file", torrent_file.name, torrent_data, {})
+    torrent_id = client.call("core.add_torrent_file", "vpn_seed_check.torrent", torrent_data, {})
 except Exception as e:
     msg = "[D-004] Failed to inject torrent into Deluge."
     debugf = f"[DEBUG] Injection error type: {type(e).__name__}, detail: {repr(e)}"
@@ -303,6 +305,7 @@ except Exception as e:
     send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
+
 
 
 # Wait and confirm upload
