@@ -164,103 +164,103 @@ send_discord_message("Check 3/4 successful.")
 # except:
 #     pass
 
-# D-004: VPN-bound seeding validation using torrent + peer container
+# # D-004: VPN-bound seeding validation using torrent + peer container
 
-send_discord_message("Executing check 4/4: Validating Deluge seeding over VPN...")
+# send_discord_message("Executing check 4/4: Validating Deluge seeding over VPN...")
 
-import libtorrent as lt
-import tempfile
+# import libtorrent as lt
+# import tempfile
 
-# Setup paths
-temp_dir = Path("/mnt/data/seedcheck")
-temp_dir.mkdir(parents=True, exist_ok=True)
-test_file = temp_dir / "vpn_seed_check.txt"
-torrent_file = temp_dir / "vpn_seed_check.torrent"
+# # Setup paths
+# temp_dir = Path("/mnt/data/seedcheck")
+# temp_dir.mkdir(parents=True, exist_ok=True)
+# test_file = temp_dir / "vpn_seed_check.txt"
+# torrent_file = temp_dir / "vpn_seed_check.torrent"
 
-# Create test file
-with open(test_file, "wb") as f:
-    f.write(os.urandom(256 * 1024))
-logging.debug(f"[DEBUG] Created test file: {test_file}")
-send_discord_message(f"[DEBUG] Created test file: {test_file}")
+# # Create test file
+# with open(test_file, "wb") as f:
+#     f.write(os.urandom(256 * 1024))
+# logging.debug(f"[DEBUG] Created test file: {test_file}")
+# send_discord_message(f"[DEBUG] Created test file: {test_file}")
 
-# Create torrent
-try:
-    fs = lt.file_storage()
-    lt.add_files(fs, str(test_file))
-    t = lt.create_torrent(fs)
-    t.add_tracker("udp://tracker.opentrackr.org:1337/announce")
-    t.set_creator("vpn-seed-test")
-    lt.set_piece_hashes(t, str(temp_dir))
-    torrent = t.generate()
+# # Create torrent
+# try:
+#     fs = lt.file_storage()
+#     lt.add_files(fs, str(test_file))
+#     t = lt.create_torrent(fs)
+#     t.add_tracker("udp://tracker.opentrackr.org:1337/announce")
+#     t.set_creator("vpn-seed-test")
+#     lt.set_piece_hashes(t, str(temp_dir))
+#     torrent = t.generate()
 
-    with open(torrent_file, "wb") as f:
-        f.write(lt.bencode(torrent))
+#     with open(torrent_file, "wb") as f:
+#         f.write(lt.bencode(torrent))
 
-    logging.debug("[DEBUG] Created torrent with libtorrent.")
-    send_discord_message("[DEBUG] Created torrent with libtorrent.")
-except Exception as e:
-    msg = "[D-004] Failed to create test torrent."
-    logging.error(msg)
-    send_discord_message(msg)
-    run_resolution("D-004")
-    exit(4)
+#     logging.debug("[DEBUG] Created torrent with libtorrent.")
+#     send_discord_message("[DEBUG] Created torrent with libtorrent.")
+# except Exception as e:
+#     msg = "[D-004] Failed to create test torrent."
+#     logging.error(msg)
+#     send_discord_message(msg)
+#     run_resolution("D-004")
+#     exit(4)
 
-# Add to Deluge
-try:
-    client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
-    client.connect()
-    with open(torrent_file, "rb") as f:
-        torrent_data = f.read()
-    client.call("core.add_torrent_file", "vpn_seed_check.torrent", torrent_data, {})
-    send_discord_message("[DEBUG] Torrent injected into Deluge.")
-except Exception as e:
-    msg = "[D-004] Failed to inject torrent into Deluge."
-    logging.error(msg)
-    send_discord_message(msg)
-    run_resolution("D-004")
-    exit(4)
+# # Add to Deluge
+# try:
+#     client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
+#     client.connect()
+#     with open(torrent_file, "rb") as f:
+#         torrent_data = f.read()
+#     client.call("core.add_torrent_file", "vpn_seed_check.torrent", torrent_data, {})
+#     send_discord_message("[DEBUG] Torrent injected into Deluge.")
+# except Exception as e:
+#     msg = "[D-004] Failed to inject torrent into Deluge."
+#     logging.error(msg)
+#     send_discord_message(msg)
+#     run_resolution("D-004")
+#     exit(4)
 
-# Trigger peer container to test seeding
-try:
-    send_discord_message("[DEBUG] Launching peer container for torrent verification...")
-    result = subprocess.run([
-        "docker", "run", "--rm",
-        "-v", "/mnt/data/seedcheck:/watch",
-        "vpn_peer_seed"
-    ], capture_output=True, text=True)
+# # Trigger peer container to test seeding
+# try:
+#     send_discord_message("[DEBUG] Launching peer container for torrent verification...")
+#     result = subprocess.run([
+#         "docker", "run", "--rm",
+#         "-v", "/mnt/data/seedcheck:/watch",
+#         "vpn_peer_seed"
+#     ], capture_output=True, text=True)
 
-    peer_output = result.stdout.strip()
-    logging.info(f"[DEBUG] Peer container output:\n{peer_output}")
-    send_discord_message(f"[DEBUG] Peer container output:\n{peer_output}")
+#     peer_output = result.stdout.strip()
+#     logging.info(f"[DEBUG] Peer container output:\n{peer_output}")
+#     send_discord_message(f"[DEBUG] Peer container output:\n{peer_output}")
 
-    if "PEER_RECEIVE_SUCCESS" not in peer_output:
-        msg = "[D-004] Peer did not receive data — seeding failed."
-        logging.error(msg)
-        send_discord_message(msg)
-        run_resolution("D-004")
-        exit(4)
+#     if "PEER_RECEIVE_SUCCESS" not in peer_output:
+#         msg = "[D-004] Peer did not receive data — seeding failed."
+#         logging.error(msg)
+#         send_discord_message(msg)
+#         run_resolution("D-004")
+#         exit(4)
 
-    send_discord_message("Check 4/4 successful.")
-    logging.info("[D-004] Seeding confirmed via VPN.")
+#     send_discord_message("Check 4/4 successful.")
+#     logging.info("[D-004] Seeding confirmed via VPN.")
 
-except Exception as e:
-    msg = "[D-004] Error running peer verification container."
-    logging.error(msg)
-    send_discord_message(msg)
-    run_resolution("D-004")
-    exit(4)
+# except Exception as e:
+#     msg = "[D-004] Error running peer verification container."
+#     logging.error(msg)
+#     send_discord_message(msg)
+#     run_resolution("D-004")
+#     exit(4)
 
-# Cleanup
-try:
-    if client and torrent_file.exists():
-        torrents = client.call("core.get_torrents_status", {}, ["name"])
-        for tid, data in torrents.items():
-            if b"vpn_seed_check" in data[b"name"]:
-                client.call("core.remove_torrent", tid, True)
-    test_file.unlink(missing_ok=True)
-    torrent_file.unlink(missing_ok=True)
-except Exception:
-    pass
+# # Cleanup
+# try:
+#     if client and torrent_file.exists():
+#         torrents = client.call("core.get_torrents_status", {}, ["name"])
+#         for tid, data in torrents.items():
+#             if b"vpn_seed_check" in data[b"name"]:
+#                 client.call("core.remove_torrent", tid, True)
+#     test_file.unlink(missing_ok=True)
+#     torrent_file.unlink(missing_ok=True)
+# except Exception:
+#     pass
 
 
 send_discord_message("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected.")

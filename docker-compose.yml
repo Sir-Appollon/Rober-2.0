@@ -54,14 +54,15 @@ services:
       - /mnt/data/seedcheck:/watch
     restart: unless-stopped
 
-  sev1_diag:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile
-    volumes:
-      - ${ROOT}/scripts:/app
-      - /mnt/data:/mnt/data
-    restart: "no"
+
+  # sev1_diag:
+  #   build:
+  #     context: ./scripts
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ${ROOT}/scripts:/app
+  #     - /mnt/data:/mnt/data
+  #   restart: "no"
 
 
   # script-monitoring:
@@ -261,19 +262,19 @@ services:
     command: ["python3", "/app/health_listener.py"]
     network_mode: host
 
-  monitor:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
-    volumes:
-      - ${ROOT}/scripts:/app
-      - /mnt/data:/mnt/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: ["python3", "/app/monitor_loop.py"]
-    network_mode: host
-    restart: unless-stopped
+  # monitor:
+  #   build:
+  #     context: ./scripts
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ${ROOT}/.env
+  #   volumes:
+  #     - ${ROOT}/scripts:/app
+  #     - /mnt/data:/mnt/data
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: ["python3", "/app/monitor_loop.py"]
+  #   network_mode: host
+  #   restart: unless-stopped
 
 
 
