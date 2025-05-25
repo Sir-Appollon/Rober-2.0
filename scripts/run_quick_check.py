@@ -3,7 +3,6 @@ import subprocess
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
-import docker
 
 # Load environment variables from container or host
 if not load_dotenv(dotenv_path="/app/.env"):
@@ -26,8 +25,11 @@ containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 
 def check_container(name):
     try:
-        result = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", name],
-                                capture_output=True, text=True)
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", name],
+            capture_output=True,
+            text=True
+        )
         return result.stdout.strip() == "true"
     except:
         return False
