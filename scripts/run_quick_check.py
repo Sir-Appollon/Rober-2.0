@@ -76,22 +76,30 @@ def check_radarr_sonarr():
     return radarr and sonarr
 
 # Execution logic
-if not check_all_containers():
-    logging.info("FAILURE: One or more containers not running.")
-    send_discord_message("[DEBUG] QuickCheck: container status failure")
-    print("FAILURE")
-elif not check_plex_local():
-    logging.info("FAILURE: Plex not responding locally.")
+if not check_plex_local():
+    logging.info("SEV 0: Plex not responding locally.")
     send_discord_message("[SEV 0] Plex access failure detected — detailed diagnostic in progress.")
+    subprocess.run(["python3", "/app/sev/sev0.py"])
     print("FAILURE")
+
 elif not check_deluge_rpc():
-    logging.info("FAILURE: Deluge RPC unreachable.")
+    logging.info("SEV 1: Deluge RPC unreachable.")
     send_discord_message("[SEV 1] Deluge not responding — diagnostic triggered.")
+    subprocess.run(["python3", "/app/sev/sev1.py"])
     print("FAILURE")
+
 elif not check_radarr_sonarr():
-    logging.info("FAILURE: Radarr or Sonarr not running.")
-    send_discord_message("[SEV 2] Radarr/Sonarr offline or unresponsive — diagnostic triggered.")
+    logging.info("SEV 2: Radarr or Sonarr not responding.")
+    send_discord_message("[SEV 2] Radarr/Sonarr failure detected — diagnostic triggered.")
+    subprocess.run(["python3", "/app/sev/sev2.py"])
     print("FAILURE")
+
+elif not check_all_containers():
+    logging.info("SEV 3: One or more containers not running.")
+    send_discord_message("[SEV 3] Core container failure — diagnostic triggered.")
+    subprocess.run(["python3", "/app/sev/sev3.py"])
+    print("FAILURE")
+
 else:
     logging.info("OK: All quick checks passed.")
     send_discord_message("[DEBUG] QuickCheck: all systems operational")
