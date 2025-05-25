@@ -205,21 +205,22 @@ if deluge_ip == host_ip:
 def deluge_has_internet():
     try:
         result = subprocess.run(
-            ["docker", "exec", "deluge", "curl", "-s", "--max-time", "5", "https://www.google.com"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            ["docker", "exec", "deluge", "curl", "-s", "--max-time", "5", "https://google.com"],
+            capture_output=True,
+            text=True
         )
-        if result.returncode == 0:
-            send_discord_message("[D-004] Internet access confirmed inside Deluge container.")
-            return True
-        else:
-            send_discord_message("[D-004] Internet access FAILED from inside Deluge container.")
-            return False
-    except Exception as e:
-        logging.error(f"[D-004] Internet test via Deluge failed: {e}")
-        send_discord_message("[D-004] Internet check failed inside Deluge container due to exception.")
+        return result.returncode == 0
+    except:
         return False
 
+if not deluge_has_internet():
+    msg = "[D-004] Deluge container has no internet access."
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+else:
+    send_discord_message("[DEBUG] Deluge container has internet access.")
 
 msg = f"[D-004] Deluge confirmed behind VPN and has internet access (Deluge IP: {deluge_ip})"
 logging.info(msg)
