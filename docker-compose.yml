@@ -23,6 +23,7 @@ services:
       - 9091:9091 # Transmission Web UI
       - 8112:8112 # Deluge Web UI
       - 58846:58846 # Deluge RPC
+      - 8081:8081
     volumes:
       - ./config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
@@ -46,16 +47,32 @@ services:
     #   - vpn
     restart: always
 
-  vpn_peer_seed:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile
-    container_name: vpn_peer_seed
+  torrent_seeder:
+    image: linuxserver/qbittorrent
+    container_name: torrent_seeder
     network_mode: service:vpn
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - WEBUI_PORT=8081
     volumes:
+      - ./seeder_data:/downloads
       - ./shared:/shared
-    depends_on:
-      - vpn
+      - ./config/seeder:/config
+    restart: unless-stopped
+
+
+  # vpn_peer_seed:
+  #   build:
+  #     context: ./scripts
+  #     dockerfile: Dockerfile
+  #   container_name: vpn_peer_seed
+  #   network_mode: service:vpn
+  #   volumes:
+  #     - ./shared:/shared
+  #   depends_on:
+  #     - vpn
 
   # sev1_diag:
   #   build:
@@ -277,8 +294,6 @@ services:
   #   command: ["python3", "/app/monitor_loop.py"]
   #   network_mode: host
   #   restart: unless-stopped
-
-
 
 networks:
   monitoring:
