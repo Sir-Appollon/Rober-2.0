@@ -47,7 +47,7 @@ debug(f"Created torrent file: {torrent_path}")
 # Bind to VPN IP
 vpn_ip = get_vpn_ip()
 if not vpn_ip:
-    print("ERROR: VPN IP not found on tun0")
+    print("ERROR: VPN IP not detected from route lookup")
     exit(1)
 
 ses = lt.session()
