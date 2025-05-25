@@ -54,6 +54,15 @@ services:
       - /mnt/data/seedcheck:/watch
     restart: unless-stopped
 
+  sev1_diag:
+    build:
+      context: ./scripts
+    volumes:
+      - ${ROOT}/scripts:/app
+      - /mnt/data:/mnt/data
+    restart: "no"
+
+
   # script-monitoring:
   #   build: ./scripts
   #   container_name: script-monitoring
