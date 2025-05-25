@@ -1,6 +1,8 @@
 import os
 import requests
 from dotenv import load_dotenv
+import time
+
 
 # Load environment variables from common Docker and host paths
 # Try container path first, fallback to local path
