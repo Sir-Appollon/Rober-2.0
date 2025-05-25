@@ -1,11 +1,12 @@
 import libtorrent as lt
-import os, time
+import os
+import time
 from pathlib import Path
 
 temp = "/tmp"
 fpath = Path(temp) / "vpn_seed_check.txt"
 with open(fpath, "wb") as f:
-    f.write(os.urandom(256 * 1024))
+    f.write(os.urandom(256 * 1024))  # 256 KB
 
 fs = lt.file_storage()
 lt.add_files(fs, str(fpath))
@@ -28,16 +29,14 @@ params = {
 h = ses.add_torrent(params)
 
 print("[DEBUG] Seeding started...")
-time.sleep(40)
+time.sleep(45)
 
-status = ses.status()
-uploaded = status.total_upload
+uploaded = h.status().all_time_upload
 
 if uploaded > 0:
     print("SEEDING_SUCCESS")
 else:
     print("SEEDING_FAILURE")
-
 
 # Cleanup
 ses.remove_torrent(h)
