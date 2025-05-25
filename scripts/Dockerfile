@@ -1,8 +1,8 @@
-FROM python:3.10-slim
+FROM ubuntu:22.04
 
 RUN apt-get update && \
-    apt-get install -y python3-pip python3-dev libtorrent-rasterbar-dev python3-libtorrent && \
-    pip install --no-cache-dir --upgrade pip && \
+    apt-get install -y python3 python3-pip python3-libtorrent && \
+    pip3 install --no-cache-dir --upgrade pip && \
     mkdir /seedcheck
 
 WORKDIR /seedcheck
