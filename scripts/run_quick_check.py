@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 import logging
+from discord_notify import send_discord_message
+
 
 log_file = "/mnt/data/entry_log_quick_check.log"
 logging.basicConfig(
@@ -68,14 +70,19 @@ def check_deluge_rpc():
 
 if not check_all_containers():
     logging.info("FAILURE: One or more containers not running.")
+    send_discord_message("[DEBUG] QuickCheck: container failure")
     print("FAILURE")
 elif not check_plex_local():
     logging.info("FAILURE: Plex not responding locally.")
+    send_discord_message("[DEBUG] QuickCheck: Plex not responding")
     print("FAILURE")
 elif not check_deluge_rpc():
     logging.info("FAILURE: Deluge RPC unreachable.")
+    send_discord_message("[DEBUG] QuickCheck: Deluge RPC unreachable")
     print("FAILURE")
 else:
     logging.info("OK: All quick checks passed.")
+    send_discord_message("[DEBUG] QuickCheck: all OK")
     print("OK")
+
 
