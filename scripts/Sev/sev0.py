@@ -17,7 +17,7 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s -
 
 # Load environment
 if not load_dotenv("/app/.env"):
-    load_dotenv("../.env")
+    load_dotenv("../../.env")
 
 DOMAIN = os.getenv("DOMAIN")
 PLEX_URL = os.getenv("PLEX_SERVER")
