@@ -1,12 +1,12 @@
 import os
 import subprocess
+import logging
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
-import logging
 from discord_notify import send_discord_message
 
-
+# Logging setup
 log_file = "/mnt/data/entry_log_quick_check.log"
 logging.basicConfig(
     filename=log_file,
@@ -14,11 +14,11 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s"
 )
 
-# Load environment variables from container or host
+# Load environment variables
 if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../.env")
 
-# Load credentials
+# Credentials
 deluge_config = {
     "host": "localhost",
     "port": 58846,
@@ -33,6 +33,7 @@ plex_config = {
 
 containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 
+# Container check
 def check_container(name):
     try:
         result = subprocess.run(
@@ -47,6 +48,7 @@ def check_container(name):
 def check_all_containers():
     return all(check_container(c) for c in containers)
 
+# Service checks
 def check_plex_local():
     try:
         PlexServer(plex_config["url"], plex_config["token"])
@@ -68,21 +70,29 @@ def check_deluge_rpc():
     except:
         return False
 
+def check_radarr_sonarr():
+    radarr = check_container("radarr")
+    sonarr = check_container("sonarr")
+    return radarr and sonarr
+
+# Execution logic
 if not check_all_containers():
     logging.info("FAILURE: One or more containers not running.")
-    send_discord_message("[DEBUG] QuickCheck: container failure")
+    send_discord_message("[DEBUG] QuickCheck: container status failure")
     print("FAILURE")
 elif not check_plex_local():
     logging.info("FAILURE: Plex not responding locally.")
-    send_discord_message("[DEBUG] QuickCheck: Plex not responding")
+    send_discord_message("[SEV 0] Plex access failure detected — detailed diagnostic in progress.")
     print("FAILURE")
 elif not check_deluge_rpc():
     logging.info("FAILURE: Deluge RPC unreachable.")
-    send_discord_message("[DEBUG] QuickCheck: Deluge RPC unreachable")
+    send_discord_message("[SEV 1] Deluge not responding — diagnostic triggered.")
+    print("FAILURE")
+elif not check_radarr_sonarr():
+    logging.info("FAILURE: Radarr or Sonarr not running.")
+    send_discord_message("[SEV 2] Radarr/Sonarr offline or unresponsive — diagnostic triggered.")
     print("FAILURE")
 else:
     logging.info("OK: All quick checks passed.")
-    send_discord_message("[DEBUG] QuickCheck: all OK")
+    send_discord_message("[DEBUG] QuickCheck: all systems operational")
     print("OK")
-
-
