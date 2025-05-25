@@ -86,17 +86,33 @@ def get_ip(container):
     except:
         return None
 
+import ipaddress
+
 vpn_ip = get_ip(VPN_CONTAINER)
 deluge_ip = get_ip(DELUGE_CONTAINER)
 
-if not vpn_ip or not deluge_ip or vpn_ip != deluge_ip:
-    msg = f"[D-004] Deluge leaking traffic — IP mismatch (VPN: {vpn_ip}, Deluge: {deluge_ip}) — attempting resolution."
+def is_host_ip(ip):
+    try:
+        addr = ipaddress.ip_address(ip)
+        return (
+            addr.is_private and
+            not ip.startswith("10.") and  # allow 10.x.x.x for VPN
+            (ip.startswith("192.168.") or ip.startswith("172."))
+        )
+    except:
+        return False
+
+if not vpn_ip or not deluge_ip or vpn_ip != deluge_ip or is_host_ip(deluge_ip):
+    msg = f"[D-004] Deluge leaking traffic — IP invalid or mismatched (VPN: {vpn_ip}, Deluge: {deluge_ip}) — attempting resolution."
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-msg = f"[D-004] Deluge bound to VPN IP (secure): {vpn_ip}"
+msg = f"[D-004] Deluge bound to VPN IP (secure): {deluge_ip}"
+logging.info(msg)
+send_discord_message("Check 4/4 successful.")
+
 logging.info(msg)
 send_discord_message("Check 4/4 successful.")
 send_discord_message("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected. No further action required.")
