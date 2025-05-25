@@ -1,13 +1,14 @@
 import os
+import sys
+import re  # Required for regex matching
+import socket
 import subprocess
 import logging
 from dotenv import load_dotenv
-import sys
 from deluge_client import DelugeRPCClient
 from pathlib import Path
-import socket
 
-# Setup import path
+# Setup import path for shared modules
 sys.path.append("..")
 from discord_notify import send_discord_message
 
@@ -15,13 +16,13 @@ from discord_notify import send_discord_message
 log_file = "/mnt/data/sev1_diagnostic.log"
 logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s - %(message)s")
 
-# Load environment
-env_loaded = False
+# Load environment from known paths
 for path in ["/app/.env", "../.env", "../../.env"]:
     if Path(path).is_file():
         load_dotenv(dotenv_path=path)
         break
 
+# Environment and container names
 VPN_CONTAINER = "vpn"
 DELUGE_CONTAINER = "deluge"
 DELUGE_USER = "localclient"
@@ -40,7 +41,7 @@ def run_resolution(code):
     send_discord_message(f"[{code}] Triggering automated resolution routine...")
     subprocess.run(["python3", "sev1_resolution.py", code])
 
-# D-001
+# D-001: VPN container check
 send_discord_message("Executing check 1/4: Verifying VPN container status...")
 if not container_running(VPN_CONTAINER):
     msg = "[D-001] VPN container is down — problem found, attempting resolution."
@@ -50,7 +51,7 @@ if not container_running(VPN_CONTAINER):
     exit(1)
 send_discord_message("Check 1/4 successful.")
 
-# D-002
+# D-002: Deluge container check
 send_discord_message("Executing check 2/4: Verifying Deluge container status...")
 if not container_running(DELUGE_CONTAINER):
     msg = "[D-002] Deluge container is down — problem found, attempting resolution."
@@ -60,7 +61,7 @@ if not container_running(DELUGE_CONTAINER):
     exit(2)
 send_discord_message("Check 2/4 successful.")
 
-# D-003
+# D-003: Deluge RPC check
 send_discord_message("Executing check 3/4: Testing Deluge RPC connection...")
 def deluge_rpc_accessible():
     try:
@@ -78,13 +79,14 @@ if not deluge_rpc_accessible():
     exit(3)
 send_discord_message("Check 3/4 successful.")
 
+# IP retrieval utilities
 def get_host_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
-        host_ip = s.getsockname()[0]
+        ip = s.getsockname()[0]
         s.close()
-        return host_ip
+        return ip
     except:
         return None
 
@@ -109,9 +111,19 @@ def get_deluge_container_ip():
     except:
         return None
 
+# D-004: IP validation
 vpn_ip = get_vpn_tun_ip()
 deluge_ip = get_deluge_container_ip()
 host_ip = get_host_ip()
+
+# Debug visibility
+debug_message = "\n".join([
+    "[DEBUG] IP Resolution Results:",
+    f"VPN IP: {vpn_ip or 'Unavailable'}",
+    f"Deluge IP: {deluge_ip or 'Unavailable'}",
+    f"Host IP: {host_ip or 'Unavailable'}"
+])
+send_discord_message(debug_message)
 
 if not vpn_ip or not deluge_ip or not host_ip:
     msg = "[D-004] IP check failed — unable to resolve all IPs"
@@ -127,10 +139,8 @@ if vpn_ip == deluge_ip or vpn_ip == host_ip or deluge_ip == host_ip:
     run_resolution("D-004")
     exit(4)
 
+# Success
 msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
-logging.info(msg)
-send_discord_message("Check 4/4 successful.")
-
 logging.info(msg)
 send_discord_message("Check 4/4 successful.")
 send_discord_message("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected. No further action required.")

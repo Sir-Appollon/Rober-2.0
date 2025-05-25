@@ -6,6 +6,10 @@ import re
 import time
 from dotenv import load_dotenv
 from pathlib import Path
+import sys
+
+# Set your mode here
+mode = "debug"  # change to "normal" to enable resolution functions
 
 sys.path.append("..")
 from discord_notify import send_discord_message
@@ -95,6 +99,19 @@ def resolve_d004():
         logging.error(f"[D-004 - Resolve Fail] {str(e)}")
         send_discord_message(f"[D-004 - Resolution Failed] {str(e)}")
 
+
+def resolve_d001():
+    print("Resolving D-001...")
+
+def resolve_d002():
+    print("Resolving D-002...")
+
+def resolve_d003():
+    print("Resolving D-003...")
+
+def resolve_d004():
+    print("Resolving D-004...")
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python3 sev1_resolution.py D-00X")
@@ -102,14 +119,18 @@ if __name__ == "__main__":
 
     code = sys.argv[1]
 
-    if code == "D-001":
-        resolve_d001()
-    elif code == "D-002":
-        resolve_d002()
-    elif code == "D-003":
-        resolve_d003()
-    elif code == "D-004":
-        resolve_d004()
+    if mode == "debug":
+        print(f"[DEBUG MODE] Not executing resolution for {code}")
+    elif mode == "normal":
+        if code == "D-001":
+            resolve_d001()
+        elif code == "D-002":
+            resolve_d002()
+        elif code == "D-003":
+            resolve_d003()
+        elif code == "D-004":
+            resolve_d004()
+        else:
+            print(f"Unknown code: {code}")
     else:
-        print("Unknown problem code.")
-        exit(1)
+        print(f"Unknown mode: {mode}")
