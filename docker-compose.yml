@@ -238,6 +238,7 @@ services:
     volumes:
       - ${ROOT}/scripts:/app
       - /mnt/data:/mnt/data
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/health_listener.py"]
     network_mode: host
 
