@@ -288,11 +288,10 @@ except Exception as e:
     run_resolution("D-004")
     exit(4)
 
-# Inject torrent
-torrent_id = None
+# Ensure a fresh connection for injection
 try:
-    if not client.connected:
-        client.connect()
+    client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
+    client.connect()
     with open(torrent_file, "rb") as f:
         torrent_data = f.read()
     torrent_id = client.call("core.add_torrent_file", "vpn_seed_check.torrent", torrent_data, {})
@@ -305,6 +304,7 @@ except Exception as e:
     send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
+
 
 
 
