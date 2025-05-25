@@ -7,6 +7,7 @@ import logging
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from pathlib import Path
+import tempfile
 
 # Setup import path for shared modules
 sys.path.append("..")
@@ -92,8 +93,14 @@ import string
 TEST_FILE = "/tmp/vpn_test.bin"
 TORRENT_FILE = "/tmp/vpn_test.torrent"
 
-# Generate small random file
-with open(TEST_FILE, "wb") as f:
+# Setup temporary file paths
+temp_dir = Path(tempfile.gettempdir())
+test_file = temp_dir / "vpn_check.txt"
+torrent_file = temp_dir / "vpn_check.torrent"
+
+# Create the test file
+with open(test_file, "w") as f:
+    f.write("This is a VPN connectivity test.")
     f.write(os.urandom(256 * 1024))  # 256 KB
 
 # Create torrent
