@@ -30,11 +30,14 @@ h = ses.add_torrent(params)
 print("[DEBUG] Seeding started...")
 time.sleep(40)
 
-status = h.status()
-if status.state == lt.torrent_status.seeding and status.total_upload > 0:
+status = ses.status()
+uploaded = status.total_upload
+
+if uploaded > 0:
     print("SEEDING_SUCCESS")
 else:
-    print("SEEDING_FAILED")
+    print("SEEDING_FAILURE")
+
 
 # Cleanup
 ses.remove_torrent(h)
