@@ -114,13 +114,13 @@ except Exception as e:
 # Create torrent
 try:
     result = subprocess.run([
-        "docker", "run", "--rm",
-        "-v", f"{test_file.parent}:/data",
-        "linuxserver/mktorrent",
-        "-a", "dht://",
-        "-o", f"/data/{torrent_file.name}",
-        f"/data/{test_file.name}"
-    ], capture_output=True, text=True, check=True)
+    "docker", "run", "--rm",
+    "-v", f"{test_file.parent}:/data",
+    "crazymax/mktorrent",
+    "-a", "dht://",
+    "-o", f"/data/{torrent_file.name}",
+    f"/data/{test_file.name}"
+], capture_output=True, text=True, check=True)
 
     debugf = f"[DEBUG] Torrent created: {torrent_file}"
     logging.debug(debugf)
