@@ -162,4 +162,5 @@ else:
 
 # Summary
 send_discord_message("SEV 0 diagnostic complete — all tests passed or non-critical warnings detected. No further action required.")
+logging.info("SEV 0 diagnostic completed — all checks passed.")
 exit(0)
