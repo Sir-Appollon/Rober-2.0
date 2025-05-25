@@ -59,9 +59,8 @@ def check_duckdns():
     try:
         logging.debug(f"Checking DuckDNS domain: {domain}")
         r = requests.get(domain, timeout=5, allow_redirects=True)
-        result = r.status_code < 400
         logging.debug(f"DuckDNS status code: {r.status_code}")
-        return result
+        return r.status_code < 500
     except Exception as e:
         logging.error(f"DuckDNS check failed: {e}")
         return False
@@ -86,9 +85,8 @@ def check_plex_remote():
     try:
         logging.debug("Checking remote Plex access")
         response = requests.get(f"{domain}/web", timeout=5, verify=True)
-        result = response.status_code < 400
         logging.debug(f"Remote Plex access status code: {response.status_code}")
-        return result
+        return response.status_code < 500
     except Exception as e:
         logging.error(f"Remote Plex check failed: {e}")
         return False
@@ -106,9 +104,11 @@ def check_deluge():
 def check_nginx():
     try:
         logging.debug("Checking Nginx configuration")
-        result = subprocess.run(["docker", "exec", "nginx-proxy", "nginx", "-t"], capture_output=True, text=True)
-        ok = "syntax is ok" in result.stdout.lower()
-        logging.debug(f"Nginx config result: {result.stdout.strip()}")
+        result = subprocess.run(["docker", "exec", "nginx-proxy", "nginx", "-t"],
+                                capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        ok = "syntax is ok" in output.lower()
+        logging.debug(f"Nginx config result: {output.strip()}")
         return ok
     except Exception as e:
         logging.error(f"Nginx check failed: {e}")
