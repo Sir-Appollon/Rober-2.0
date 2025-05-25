@@ -57,6 +57,7 @@ services:
   sev1_diag:
     build:
       context: ./scripts
+      dockerfile: Dockerfile
     volumes:
       - ${ROOT}/scripts:/app
       - /mnt/data:/mnt/data
