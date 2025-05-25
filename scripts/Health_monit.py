@@ -8,9 +8,10 @@ from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 
-# Load environment
-if not load_dotenv("/app/.env"):
-    load_dotenv("../.env")
+# Load environment variables from container or host
+# Try container path first, fallback to host path
+if not load_dotenv(dotenv_path="/app/.env"):
+    load_dotenv(dotenv_path="../.env")
 
 # Logging setup for Health_monit (automatic monitoring)
 log_file = "/mnt/data/health_automatic_monitoring.log"
