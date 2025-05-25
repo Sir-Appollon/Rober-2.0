@@ -3,6 +3,14 @@ import subprocess
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
+import logging
+
+log_file = "/mnt/data/entry_log_quick_check.log"
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s"
+)
 
 # Load environment variables from container or host
 if not load_dotenv(dotenv_path="/app/.env"):
@@ -59,10 +67,15 @@ def check_deluge_rpc():
         return False
 
 if not check_all_containers():
+    logging.info("FAILURE: One or more containers not running.")
     print("FAILURE")
 elif not check_plex_local():
+    logging.info("FAILURE: Plex not responding locally.")
     print("FAILURE")
 elif not check_deluge_rpc():
+    logging.info("FAILURE: Deluge RPC unreachable.")
     print("FAILURE")
 else:
+    logging.info("OK: All quick checks passed.")
     print("OK")
+
