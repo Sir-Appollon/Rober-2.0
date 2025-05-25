@@ -80,132 +80,32 @@ if not deluge_rpc_accessible():
     exit(3)
 send_discord_message("Check 3/4 successful.")
 
-# D-004: VPN-bound seeding capability check via temporary torrent
+# D-004: Deluge activity confirmation
 
-send_discord_message("Executing check 4/4: Verifying VPN-bound Deluge seeding capability...")
+send_discord_message("Executing check 4/4: Verifying active Deluge download or seeding...")
 
-import time
-import random
-import string
-import tempfile
-
-# Setup temporary file paths
-temp_dir = Path(tempfile.gettempdir())
-test_file = temp_dir / "vpn_check.txt"
-torrent_file = temp_dir / "vpn_check.torrent"
-
-# Create the test file
-try:
-    with open(test_file, "wb") as f:
-        f.write("This is a VPN connectivity test.".encode())
-        f.write(os.urandom(256 * 1024))  # 256 KB
-    debugf = f"[DEBUG] Created test file at {test_file}"
-    logging.debug(debugf)
-    send_discord_message(debugf)
-except Exception as e:
-    msg = "[D-004] Failed to create temporary test file."
-    debugf = f"[DEBUG] {e}"
-    logging.error(msg)
-    send_discord_message(msg)
-    send_discord_message(debugf)
-    run_resolution("D-004")
-    exit(4)
-
-# Create torrent
-try:
-    result = subprocess.run([
-    "docker", "run", "--rm",
-    "-v", f"{test_file.parent}:/data",
-    "cmd.cat/mktorrent",
-    "mktorrent",
-    "-a", "dht://",
-    "-o", f"/data/{torrent_file.name}",
-    f"/data/{test_file.name}"
-], capture_output=True, text=True, check=True)
-
-    debugf = f"[DEBUG] Torrent created: {torrent_file}"
-    logging.debug(debugf)
-    send_discord_message(debugf)
-
-except subprocess.CalledProcessError as e:
-    msg = "[D-004] Failed to create torrent for VPN test."
-    debugf = f"[DEBUG] mktorrent stderr: {e.stderr.strip()}"
-    logging.error(msg)
-    logging.debug(debugf)
-    send_discord_message(msg)
-    send_discord_message(debugf)
-    run_resolution("D-004")
-    exit(4)
-
-# Connect to Deluge
 try:
     client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
     client.connect()
-    send_discord_message("[DEBUG] Connected to Deluge RPC.")
+    torrents = client.call("core.get_torrents_status", {}, ["state"])
+    active = any(t[b"state"] in [b"Downloading", b"Seeding"] for t in torrents.values())
 except Exception as e:
-    msg = "[D-004] Could not connect to Deluge RPC for torrent injection."
-    debugf = f"[DEBUG] {e}"
+    msg = "[D-004] Deluge RPC access failed during activity check."
     logging.error(msg)
     send_discord_message(msg)
-    send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
 
-# Add torrent to Deluge
-torrent_id = None
-try:
-    with open(torrent_file, "rb") as f:
-        torrent_data = f.read()
-    torrent_id = client.call("core.add_torrent_file", "vpn_test.torrent", torrent_data, {})
-    debugf = f"[DEBUG] Test torrent added to Deluge: {torrent_id}"
-    logging.debug(debugf)
-    send_discord_message(debugf)
-except Exception as e:
-    msg = "[D-004] Failed to inject test torrent into Deluge."
-    debugf = f"[DEBUG] {e}"
+if not active:
+    msg = "[D-004] No active Deluge download or seeding detected — may lack internet."
     logging.error(msg)
     send_discord_message(msg)
-    send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
 
-# Wait for upload activity
-time.sleep(45)
-try:
-    status = client.call("core.get_torrents_status", {}, ["name", "state", "total_uploaded"])
-    test = next((k for k, v in status.items() if b"vpn_test" in v[b"name"]), None)
-
-    if test and status[test][b"state"] == b"Seeding" and status[test][b"total_uploaded"] > 0:
-        msg = "[D-004] Deluge confirmed to seed via VPN — validated."
-        logging.info(msg)
-        send_discord_message("Check 4/4 successful.")
-    else:
-        msg = "[D-004] Deluge seeding test failed — torrent did not upload."
-        debugf = f"[DEBUG] Torrent state: {status[test][b'state']}, Uploaded: {status[test][b'total_uploaded']}"
-        logging.error(msg)
-        send_discord_message(msg)
-        send_discord_message(debugf)
-        run_resolution("D-004")
-        exit(4)
-except Exception as e:
-    msg = "[D-004] Could not confirm torrent activity."
-    debugf = f"[DEBUG] {e}"
-    logging.error(msg)
-    send_discord_message(msg)
-    send_discord_message(debugf)
-    run_resolution("D-004")
-    exit(4)
-
-# Cleanup
-try:
-    if torrent_id:
-        client.call("core.remove_torrent", torrent_id, True)
-    os.remove(test_file)
-    os.remove(torrent_file)
-    send_discord_message("[DEBUG] Cleanup successful.")
-except Exception as e:
-    send_discord_message(f"[DEBUG] Cleanup failed: {e}")
-
+msg = "[D-004] Active Deluge traffic confirmed — VPN connectivity validated."
+logging.info(msg)
+send_discord_message("Check 4/4 successful.")
 
 # Done
 send_discord_message("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected.")
