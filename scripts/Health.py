@@ -87,16 +87,16 @@ def get_cpu_usage():
     return usage
 
 def get_internet_speed():
-    print("Checking Internet speed ...")
     try:
-        st = speedtest.Speedtest()
-        download = st.download() / 1e6
-        upload = st.upload() / 1e6
-        print(f"Internet OK - Download: {round(download, 2)} Mbps, Upload: {round(upload, 2)} Mbps")
-        return round(download, 2), round(upload, 2)
+        result = subprocess.run(["speedtest", "--simple"], capture_output=True, text=True)
+        lines = result.stdout.splitlines()
+        dl = float(lines[1].split()[1])
+        ul = float(lines[2].split()[1])
+        return dl, ul
     except Exception as e:
-        print(f"Internet Speed ERROR - {e}")
+        print("Speedtest CLI failed:", e)
         return None, None
+
 
 def log_status():
     print("Starting health checks ...")

@@ -1,0 +1,56 @@
+FULL DIAGNOSTIC DECISION TREE WITH PLEX-ACCESS SEVERITY + EVENT CODES
+──────────────────────────────────────────────────────────────────────────────
+
+PLEX DECISION TREE (ACCESS-CENTRIC)
+──────────────────────────────────────────────
+[P-001] Is Plex container running?                                 [SEV 0]
+└── No: Log "Plex container down" → Stop
+└── Yes:
+    [P-002] Is Plex accessible locally (http://LAN_IP:32400)?      [SEV 0]
+    └── No: Log "Plex daemon not responding" → Stop
+    └── Yes:
+        [P-003] Is DOMAIN accessible (DuckDNS)?                    [SEV 0]
+        └── No: Log "DuckDNS not resolving" → Stop
+        └── Yes:
+            [P-004] Is SSL valid?                                  [SEV 0]
+            └── No: Log "SSL invalid/expired"
+            └── Yes:
+                [P-005] Is remote Plex accessible (DOMAIN/web)?    [SEV 0]
+                └── No: Log "Remote Plex access failed"
+                └── Yes: Log "Plex accessible externally"
+
+        [P-006] Is Nginx config valid? (nginx -t)                  [SEV 0]
+        └── Only check this if Plex external access fails
+        └── No: Log "Nginx configuration error"
+        └── Yes: Log "Nginx configuration OK"
+
+DELUGE (VPN) DECISION TREE (WITH IP CHECK)
+────────────────────────────────────────────────────
+[D-001] Is VPN container running?                                   [SEV 1]
+└── No: Log "VPN container down" → Stop
+└── Yes:
+    [D-002] Is Deluge container running?                            [SEV 1]
+    └── No: Log "Deluge container down" → Stop
+    └── Yes:
+        [D-003] Is Deluge RPC accessible on localhost:58846?        [SEV 1]
+        └── No: Log "Deluge RPC error"
+        └── Yes:
+            [D-004] Is Deluge IP equal to VPN container IP?         [SEV 1]
+            └── No: Log "Deluge leaking traffic (IP mismatch)"
+            └── Yes: Log "Deluge bound to VPN IP (secure)"
+
+RADARR / SONARR DECISION TREE
+──────────────────────────────────────────────
+[A-001] Is <Service> container running?                            [SEV 2]
+└── No: Log "<Service> container down" → Stop
+└── Yes:
+    [A-002] Is Web/API responding?                                 [SEV 2]
+    └── No: Log "<Service> unresponsive or API failure"
+    └── Yes: Log "<Service> operational"
+
+
+SEVERITY DEFINITION
+──────────────────────────────────────────────
+SEV 0 → Plex not accessible online = user-facing failure  
+SEV 1 → Deluge not functioning = download/seeding blocked  
+SEV 2 → Secondary automation broken (radarr, sonarr, etc.)  
