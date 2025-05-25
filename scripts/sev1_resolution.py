@@ -121,6 +121,7 @@ if __name__ == "__main__":
 
     if mode == "debug":
         print(f"[DEBUG MODE] Not executing resolution for {code}")
+        send_discord_message(f"[DEBUG MODE] Not executing resolution")
     elif mode == "normal":
         if code == "D-001":
             resolve_d001()
