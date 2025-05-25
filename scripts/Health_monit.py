@@ -1,17 +1,18 @@
 import os
 import subprocess
 import logging
+import ssl
+import socket
+import requests
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
-import psutil
-import requests
 
 # Load environment
 if not load_dotenv("/app/.env"):
     load_dotenv("../.env")
 
-# Logging setup
+# Logging setup for Health_monit (automatic monitoring)
 log_file = "/mnt/data/health_automatic_monitoring.log"
 logging.basicConfig(
     filename=log_file,
@@ -24,7 +25,9 @@ containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 plex_url = os.getenv("PLEX_SERVER")
 plex_token = os.getenv("PLEX_TOKEN")
 deluge_password = os.getenv("DELUGE_PASSWORD")
-domain = os.getenv("DOMAIN")  # for duckdns/ssl
+domain = os.getenv("DOMAIN")  # e.g., https://yourdomain.duckdns.org
+
+logging.getLogger("deluge_client.client").setLevel(logging.WARNING)
 
 def check_docker(container):
     try:
@@ -48,23 +51,27 @@ def check_plex_internal():
 
 def check_duckdns():
     try:
-        response = requests.get(domain, timeout=5)
-        return response.status_code == 200
+        r = requests.get(domain, timeout=5, allow_redirects=True)
+        return r.status_code < 400
     except:
         return False
 
 def check_ssl():
     try:
-        out = subprocess.run(["openssl", "s_client", "-connect", f"{domain.replace('https://', '')}:443"],
-                             capture_output=True, text=True, timeout=5)
-        return "BEGIN CERTIFICATE" in out.stdout
+        hostname = domain.replace("https://", "").split("/")[0]
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
+            s.settimeout(5)
+            s.connect((hostname, 443))
+            cert = s.getpeercert()
+            return cert is not None
     except:
         return False
 
 def check_plex_remote():
     try:
-        out = subprocess.run(["curl", "-fsSL", f"{domain}/web"], capture_output=True)
-        return out.returncode == 0
+        response = requests.get(f"{domain}/web", timeout=5, verify=True)
+        return response.status_code < 400
     except:
         return False
 
@@ -73,6 +80,13 @@ def check_deluge():
         client = DelugeRPCClient("localhost", 58846, "localclient", deluge_password, False)
         client.connect()
         return True
+    except:
+        return False
+
+def check_nginx():
+    try:
+        result = subprocess.run(["docker", "exec", "nginx-proxy", "nginx", "-t"], capture_output=True, text=True)
+        return "syntax is ok" in result.stdout.lower()
     except:
         return False
 
@@ -101,6 +115,11 @@ def log_status():
                 logging.error("DuckDNS domain not resolving.")
             if not ssl_ok:
                 logging.error("SSL certificate invalid or expired.")
+
+        if check_nginx():
+            logging.info("Nginx configuration valid.")
+        else:
+            logging.error("Nginx configuration error.")
 
     if status.get("vpn"):
         if status.get("deluge"):
