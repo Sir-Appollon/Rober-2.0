@@ -96,19 +96,29 @@ TORRENT_FILE = "/tmp/vpn_test.torrent"
 with open(TEST_FILE, "wb") as f:
     f.write(os.urandom(256 * 1024))  # 256 KB
 
-# Create torrent (DHT only)
+# Create torrent
 try:
-    subprocess.run(
-        ["mktorrent", "-a", "", "-o", TORRENT_FILE, TEST_FILE],
-        check=True,
-        capture_output=True
+    result = subprocess.run(
+        [
+            "mktorrent",
+            "-a", "udp://tracker.openbittorrent.com:80/announce",
+            "-o", str(torrent_file),
+            str(test_file)
+        ],
+        capture_output=True,
+        text=True,
+        check=True
     )
-except Exception as e:
+except subprocess.CalledProcessError as e:
     msg = "[D-004] Failed to create torrent for VPN test."
+    debugf = f"[DEBUG] mktorrent stderr: {e.stderr.strip()}"
     logging.error(msg)
+    logging.debug(debugf)
     send_discord_message(msg)
+    send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
+
 
 # Connect to Deluge
 try:
