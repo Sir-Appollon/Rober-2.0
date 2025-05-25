@@ -237,8 +237,9 @@ services:
       - ${ROOT}/.env
     volumes:
       - ${ROOT}/scripts:/app
+      - /mnt/data:/mnt/data
     command: ["python3", "/app/health_listener.py"]
-
+    network_mode: host
 
 networks:
   monitoring:
