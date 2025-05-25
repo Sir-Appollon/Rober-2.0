@@ -51,9 +51,11 @@ services:
       context: ./scripts
       dockerfile: Dockerfile
     container_name: vpn_peer_seed
-    network_mode: host
-    restart: "no"
-    entrypoint: ["python3", "/app/vpn_peer_seed_check.py"]
+    network_mode: service:vpn
+    volumes:
+      - ./shared:/shared
+    depends_on:
+      - vpn
 
   # sev1_diag:
   #   build:
