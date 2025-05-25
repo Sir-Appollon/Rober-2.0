@@ -6,16 +6,27 @@ import subprocess
 import requests
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
-from discord_notify import send_discord_message
+import sys
+from pathlib import Path
 
+# Path fix to import discord_notify from parent
+sys.path.append("..")
+from discord_notify import send_discord_message
 
 # Logging
 log_file = "/mnt/data/sev0_diagnostic.log"
 logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s - %(message)s")
 
 # Load environment
-if not load_dotenv("/app/.env"):
-    load_dotenv("../.env")
+env_loaded = False
+for path in ["/app/.env", "../.env", "../../.env"]:
+    if Path(path).is_file():
+        load_dotenv(dotenv_path=path)
+        print(f"[DEBUG] .env loaded from {path}")
+        env_loaded = True
+        break
+if not env_loaded:
+    print("[DEBUG] No .env file found in known paths.")
 
 DOMAIN = os.getenv("DOMAIN")
 PLEX_URL = os.getenv("PLEX_SERVER")
@@ -35,7 +46,7 @@ def plex_container_running():
         return False
 
 if not plex_container_running():
-    msg = "[P-001] Plex container is down — aborting SEV 0 diagnostic."
+    msg = "[P-001] Plex container is down — problem found, aborting sequence."
     logging.error(msg)
     send_discord_message(msg)
     exit(1)
@@ -51,7 +62,7 @@ def plex_accessible_local():
         return False
 
 if not plex_accessible_local():
-    msg = "[P-002] Plex daemon not responding locally — aborting SEV 0 diagnostic."
+    msg = "[P-002] Plex daemon not responding locally — problem found, aborting sequence."
     logging.error(msg)
     send_discord_message(msg)
     exit(2)
@@ -62,12 +73,12 @@ send_discord_message("Executing check 3/6: Validating DuckDNS domain resolution.
 def duckdns_accessible():
     try:
         r = requests.get(DOMAIN, timeout=5, allow_redirects=True)
-        return r.status_code < 400
+        return r.status_code < 500  # Accept 401/403 as resolving
     except:
         return False
 
 if not duckdns_accessible():
-    msg = "[P-003] DuckDNS domain not resolving — aborting SEV 0 diagnostic."
+    msg = "[P-003] DuckDNS domain not resolving — problem found, aborting sequence."
     logging.error(msg)
     send_discord_message(msg)
     exit(3)
