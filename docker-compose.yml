@@ -48,12 +48,12 @@ services:
 
   vpn_peer_seed:
     build:
-      context: ./peer
-      dockerfile: scripts/Dockerfile.seedcheck
-    volumes:
-      - /mnt/data/seedcheck:/watch
-    restart: unless-stopped
-
+      context: ./scripts
+      dockerfile: Dockerfile
+    container_name: vpn_peer_seed
+    network_mode: host
+    restart: "no"
+    entrypoint: ["python3", "/app/vpn_peer_seed_check.py"]
 
   # sev1_diag:
   #   build:
