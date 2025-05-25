@@ -105,17 +105,15 @@ with open(test_file, "wb") as f:
 
 # Create torrent
 try:
-    result = subprocess.run(
-        [
-            "mktorrent",
-            "-a", "udp://tracker.openbittorrent.com:80/announce",
-            "-o", str(torrent_file),
-            str(test_file)
-        ],
-        capture_output=True,
-        text=True,
-        check=True
-    )
+    result = subprocess.run([
+        "docker", "run", "--rm",
+        "-v", f"{test_file.parent}:/data",
+        "linuxserver/mktorrent",
+        "-a", "dht://",
+        "-o", f"/data/{torrent_file.name}",
+        f"/data/{test_file.name}"
+    ], capture_output=True, text=True, check=True)
+
 except subprocess.CalledProcessError as e:
     msg = "[D-004] Failed to create torrent for VPN test."
     debugf = f"[DEBUG] mktorrent stderr: {e.stderr.strip()}"
@@ -125,6 +123,7 @@ except subprocess.CalledProcessError as e:
     send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
+
 
 
 # Connect to Deluge
