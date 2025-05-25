@@ -69,7 +69,22 @@ params = {
 }
 h = ses.add_torrent(params)
 print("[DEBUG] Seeding started...")
-time.sleep(45)
+time.sleep(45)  # Allow some time for connections
+
+status = h.status()
+
+print(f"[DEBUG] Torrent state: {status.state}")
+print(f"[DEBUG] Upload rate: {status.upload_rate} B/s")
+print(f"[DEBUG] Download rate: {status.download_rate} B/s")
+print(f"[DEBUG] Total uploaded: {status.all_time_upload} bytes")
+print(f"[DEBUG] Total downloaded: {status.all_time_download} bytes")
+print(f"[DEBUG] Number of peers: {status.num_peers}")
+
+if status.state == lt.torrent_status.seeding and status.all_time_upload > 0:
+    print("SEEDING_STATE_CONFIRMED")
+else:
+    print("SEEDING_STATE_FAILED")
+
 
 # Check seeding status
 state = h.status().state
