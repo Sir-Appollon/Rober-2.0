@@ -24,12 +24,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"[DEBUG] Logged in as {bot.user}")
+    pass  # silence bot connection print
 
 @bot.command(name="health")
 async def run_health(ctx):
     if ctx.channel.id != CHANNEL_ID:
-        print(f"[DEBUG] Ignored command from channel: {ctx.channel.id}")
         return
 
     await ctx.send("Running health check...")
@@ -41,9 +40,20 @@ async def run_health(ctx):
             text=True,
             timeout=60
         )
-        stdout = result.stdout.strip() or "[no stdout]"
+        stdout = result.stdout.strip()
         stderr = result.stderr.strip()
-        report = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}" if stderr else stdout
+
+        # Filter out any debug lines from Health.py
+        report_lines = [
+            line for line in stdout.splitlines() if not line.startswith("[DEBUG]")
+        ]
+        report = "\n".join(report_lines).strip()
+
+        if stderr:
+            report += f"\n\n[ERROR]\n{stderr.strip()}"
+
+        if not report:
+            report = "[No output]"
 
         if len(report) < 1900:
             await ctx.send(f"```{report}```")
