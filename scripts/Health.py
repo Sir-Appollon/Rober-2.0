@@ -14,7 +14,7 @@ if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../.env")
 
 # Configure logging
-log_file = "/mnt/data/service_status.log"
+log_file = "/mnt/dataentry_log_health.log"
 logging.basicConfig(
     filename=log_file, level=logging.INFO, format="%(asctime)s - %(message)s"
 )

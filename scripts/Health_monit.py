@@ -12,7 +12,7 @@ if not load_dotenv("/app/.env"):
     load_dotenv("../.env")
 
 # Logging setup
-log_file = "/mnt/data/service_status.log"
+log_file = "/mnt/data/health_automatic_monitoring.log"
 logging.basicConfig(
     filename=log_file,
     level=logging.INFO,
