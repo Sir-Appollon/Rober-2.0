@@ -294,10 +294,13 @@ try:
     with open(torrent_file, "rb") as f:
         torrent_data = f.read()
     torrent_id = client.call("core.add_torrent_file", torrent_file.name, torrent_data, {})
-except Exception:
+except Exception as e:
     msg = "[D-004] Failed to inject torrent into Deluge."
+    debugf = f"[DEBUG] Injection error: {e}"
     logging.error(msg)
+    logging.debug(debugf)
     send_discord_message(msg)
+    send_discord_message(debugf)
     run_resolution("D-004")
     exit(4)
 
