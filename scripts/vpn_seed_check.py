@@ -86,12 +86,11 @@ else:
     print("SEEDING_STATE_FAILED")
 
 
-# Check seeding status
-state = h.status().state
-if state == lt.torrent_status.seeding:
+if status.state == lt.torrent_status.seeding and status.all_time_upload > 0:
     print("SEEDING_STATE_CONFIRMED")
 else:
     print("SEEDING_STATE_FAILED")
+
 
 # Cleanup
 ses.remove_torrent(h)
