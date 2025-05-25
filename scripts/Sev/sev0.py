@@ -6,7 +6,10 @@ import subprocess
 import requests
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
+import sys
+sys.path.append("..")  # enables access to ../discord_notify.py
 from discord_notify import send_discord_message
+
 
 # Logging
 log_file = "/mnt/data/sev0_diagnostic.log"
