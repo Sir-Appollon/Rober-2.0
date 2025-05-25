@@ -127,32 +127,67 @@ vpn_ip = get_vpn_tun_ip()
 host_ip = get_host_ip()
 deluge_external_ip = get_external_ip_from_deluge()
 
-# Debug visibility
+# D-004: IP validation using external shell script
+
+send_discord_message("Executing check 4/4: Verifying Deluge VPN binding via external check...")
+
+# Call the shell script and capture output
+try:
+    result = subprocess.run(
+        ["bash", "../function/check_deluge_vpn_ip.sh"],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+    output = result.stdout.strip()
+except subprocess.CalledProcessError as e:
+    msg = "[D-004] IP check script failed to execute properly."
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+
+# Extract IPs from output
+vpn_ip = None
+deluge_ip = None
+host_ip = None
+
+for line in output.splitlines():
+    if "VPN_IP" in line:
+        vpn_ip = line.split(":")[-1].strip()
+    elif "DELUGE_IP" in line:
+        deluge_ip = line.split(":")[-1].strip()
+    elif "HOST_IP" in line:
+        host_ip = line.split(":")[-1].strip()
+
+# Discord debug print
 debug_message = "\n".join([
-    "[DEBUG] IP Resolution Results:",
+    "[DEBUG] IP Resolution Results from script:",
     f"VPN IP: {vpn_ip or 'Unavailable'}",
-    f"Deluge External IP: {deluge_external_ip or 'Unavailable'}",
+    f"Deluge IP: {deluge_ip or 'Unavailable'}",
     f"Host IP: {host_ip or 'Unavailable'}"
 ])
 send_discord_message(debug_message)
 
-if not vpn_ip or not deluge_external_ip or not host_ip:
-    msg = "[D-004] IP check failed — unable to resolve all IPs"
+# Validation logic
+if not vpn_ip or not deluge_ip or not host_ip:
+    msg = "[D-004] IP check failed — could not extract all IPs"
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-if deluge_external_ip == host_ip:
-    msg = f"[D-004] Deluge leaking traffic — external IP matches host (VPN: {vpn_ip}, Deluge: {deluge_external_ip}, Host: {host_ip})"
+if deluge_ip == host_ip:
+    msg = f"[D-004] Deluge leaking traffic — external IP matches host (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_external_ip}, Host: {host_ip})"
+msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
 logging.info(msg)
 send_discord_message("Check 4/4 successful.")
+
 
 
 # Success
