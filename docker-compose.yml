@@ -45,6 +45,14 @@ services:
     #   - vpn
     restart: always
 
+  vpn_peer_seed:
+    build:
+      context: ./peer
+      dockerfile: Dockerfile
+    volumes:
+      - /mnt/data/seedcheck:/watch
+    restart: unless-stopped
+
   # script-monitoring:
   #   build: ./scripts
   #   container_name: script-monitoring

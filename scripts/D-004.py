@@ -27,6 +27,11 @@ with open(torrent_path, "wb") as f:
     f.write(lt.bencode(torrent))
 print(f"[DEBUG] Created torrent file: {torrent_path}")
 
+# Copy torrent file to peer watch folder
+Path("/mnt/data/seedcheck/").mkdir(parents=True, exist_ok=True)
+subprocess.run(["cp", str(torrent_path), "/mnt/data/seedcheck/vpn_seed_check.torrent"])
+
+
 # Load configured IP from core.conf (manual parse for Deluge syntax)
 outgoing_ip = None
 try:
