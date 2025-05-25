@@ -99,7 +99,7 @@ test_file = temp_dir / "vpn_check.txt"
 torrent_file = temp_dir / "vpn_check.torrent"
 
 # Create the test file
-with open(test_file, "w") as f:
+with open(test_file, "wb") as f:
     f.write("This is a VPN connectivity test.")
     f.write(os.urandom(256 * 1024))  # 256 KB
 
