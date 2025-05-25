@@ -2,6 +2,7 @@ import libtorrent as lt
 import os
 import time
 from pathlib import Path
+import subprocess
 
 MODE = "Debug"  # Change to "Normal" for silent mode
 SCRIPT = "vpn_peer_seed_check"
@@ -9,6 +10,30 @@ SCRIPT = "vpn_peer_seed_check"
 def debug(msg):
     if MODE == "Debug":
         print(f"[DEBUG - {SCRIPT}] {msg}")
+
+
+def get_vpn_ip():
+    try:
+        result = subprocess.run(["ip", "addr", "show", "dev", "tun0"], capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("inet "):
+                return line.split()[1].split("/")[0]
+    except:
+        return None
+
+vpn_ip = get_vpn_ip()
+if not vpn_ip:
+    print("Failed to detect VPN IP")
+    exit(1)
+
+ses = lt.session()
+ses.listen_on(6881, 6891)
+ses.set_alert_mask(lt.alert.category_t.all_categories)
+ses.apply_settings({
+    'outgoing_interfaces': 'tun0',
+    'listen_interfaces': f'{vpn_ip}:6881'
+})
 
 # Create temporary test file
 temp = "/tmp"
