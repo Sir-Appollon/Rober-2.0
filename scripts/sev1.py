@@ -112,32 +112,48 @@ def get_deluge_container_ip():
         return None
 
 # D-004: IP validation
+send_discord_message("Executing check 4/4: Verifying Deluge traffic is routed through VPN...")
+
+def get_external_ip_from_deluge():
+    try:
+        client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
+        client.connect()
+        raw_ip = client.call("core.get_external_ip")
+        return socket.inet_ntoa(raw_ip) if raw_ip else None
+    except:
+        return None
+
 vpn_ip = get_vpn_tun_ip()
-deluge_ip = get_deluge_container_ip()
 host_ip = get_host_ip()
+deluge_external_ip = get_external_ip_from_deluge()
 
 # Debug visibility
 debug_message = "\n".join([
     "[DEBUG] IP Resolution Results:",
     f"VPN IP: {vpn_ip or 'Unavailable'}",
-    f"Deluge IP: {deluge_ip or 'Unavailable'}",
+    f"Deluge External IP: {deluge_external_ip or 'Unavailable'}",
     f"Host IP: {host_ip or 'Unavailable'}"
 ])
 send_discord_message(debug_message)
 
-if not vpn_ip or not deluge_ip or not host_ip:
+if not vpn_ip or not deluge_external_ip or not host_ip:
     msg = "[D-004] IP check failed — unable to resolve all IPs"
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-if vpn_ip == deluge_ip or vpn_ip == host_ip or deluge_ip == host_ip:
-    msg = f"[D-004] Deluge leaking traffic — IP invalid or matched with host (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
+if deluge_external_ip == host_ip:
+    msg = f"[D-004] Deluge leaking traffic — external IP matches host (VPN: {vpn_ip}, Deluge: {deluge_external_ip}, Host: {host_ip})"
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
+
+msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_external_ip}, Host: {host_ip})"
+logging.info(msg)
+send_discord_message("Check 4/4 successful.")
+
 
 # Success
 msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
