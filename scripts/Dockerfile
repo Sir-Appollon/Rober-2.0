@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
 RUN apt-get update && \
-    apt-get install -y python3-pip python3-dev libtorrent-rasterbar-dev && \
+    apt-get install -y python3-pip python3-dev libtorrent-rasterbar-dev python3-libtorrent && \
     pip install --no-cache-dir --upgrade pip && \
     mkdir /seedcheck
 
