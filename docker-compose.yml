@@ -49,7 +49,7 @@ services:
   vpn_peer_seed:
     build:
       context: ./peer
-      dockerfile: Dockerfile
+      dockerfile: scripts/Dockerfile.seedcheck
     volumes:
       - /mnt/data/seedcheck:/watch
     restart: unless-stopped
