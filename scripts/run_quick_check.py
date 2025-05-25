@@ -57,7 +57,7 @@ def check_plex_local():
     except:
         return False
 
-def check_deluge_rpc():
+def check_deluge_activity():
     try:
         client = DelugeRPCClient(
             deluge_config["host"],
@@ -67,7 +67,12 @@ def check_deluge_rpc():
             False
         )
         client.connect()
-        return True
+        torrents = client.call("core.get_torrents_status", {}, ["state"])
+        for torrent in torrents.values():
+            state = torrent[b"state"]
+            if state in (b"Downloading", b"Seeding"):
+                return True
+        return False
     except:
         return False
 
@@ -83,9 +88,9 @@ if not check_plex_local():
     subprocess.run(["python3", "/app/sev/sev0.py"])
     print("FAILURE")
 
-elif not check_deluge_rpc():
-    logging.info("SEV 1: Deluge RPC unreachable.")
-    send_discord_message("[SEV 1] Deluge not responding — diagnostic triggered.")
+elif not check_deluge_activity():
+    logging.info("SEV 1: Deluge not downloading or seeding.")
+    send_discord_message("[SEV 1] Deluge idle — diagnostic triggered.")
     subprocess.run(["python3", "/app/sev/sev1.py"])
     print("FAILURE")
 

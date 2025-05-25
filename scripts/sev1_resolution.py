@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 # Set your mode here
-mode = "debug"  # change to "normal" to enable resolution functions
+mode = "nomral"  # change to "normal" to enable resolution functions
 
 sys.path.append("..")
 from discord_notify import send_discord_message
