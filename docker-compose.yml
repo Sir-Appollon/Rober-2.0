@@ -256,12 +256,12 @@ services:
     network_mode: host
     restart: unless-stopped
 
-  mktorrent:
-    image: linuxserver/mktorrent
-    container_name: mktorrent
-    entrypoint: ["/bin/true"]  # Prevent container from running automatically
-    volumes:
-      - ${ROOT}/function:/data
+  # mktorrent:
+  #   image: linuxserver/mktorrent
+  #   container_name: mktorrent
+  #   entrypoint: ["/bin/true"]  # Prevent container from running automatically
+  #   volumes:
+  #     - ${ROOT}/function:/data
 
 networks:
   monitoring:

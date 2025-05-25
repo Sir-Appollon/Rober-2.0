@@ -116,7 +116,7 @@ try:
     result = subprocess.run([
     "docker", "run", "--rm",
     "-v", f"{test_file.parent}:/data",
-    "eficode/mktorrent",
+    "pobrn/mktorrent",
     "-a", "dht://",
     "-o", f"/data/{torrent_file.name}",
     f"/data/{test_file.name}"
