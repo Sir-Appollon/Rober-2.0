@@ -6,6 +6,7 @@ from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 from discord_notify import send_discord_message
 
+
 # Logging setup
 log_file = "/mnt/data/entry_log_quick_check.log"
 logging.basicConfig(

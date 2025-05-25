@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import sys
 from deluge_client import DelugeRPCClient
 from pathlib import Path
+import socket
 
 # Setup import path
 sys.path.append("..")
@@ -77,39 +78,56 @@ if not deluge_rpc_accessible():
     exit(3)
 send_discord_message("Check 3/4 successful.")
 
-# D-004
-send_discord_message("Executing check 4/4: Comparing Deluge and VPN container IPs...")
-def get_ip(container):
+def get_host_ip():
     try:
-        result = subprocess.run(["docker", "exec", container, "sh", "-c", "hostname -i"], capture_output=True, text=True)
-        return result.stdout.strip().split()[0]
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        host_ip = s.getsockname()[0]
+        s.close()
+        return host_ip
     except:
         return None
 
-import ipaddress
-
-vpn_ip = get_ip(VPN_CONTAINER)
-deluge_ip = get_ip(DELUGE_CONTAINER)
-
-def is_host_ip(ip):
+def get_vpn_tun_ip():
     try:
-        addr = ipaddress.ip_address(ip)
-        return (
-            addr.is_private and
-            not ip.startswith("10.") and  # allow 10.x.x.x for VPN
-            (ip.startswith("192.168.") or ip.startswith("172."))
+        result = subprocess.run(
+            ["docker", "exec", VPN_CONTAINER, "ip", "addr", "show", "tun0"],
+            capture_output=True, text=True
         )
+        match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+        return match.group(1) if match else None
     except:
-        return False
+        return None
 
-if not vpn_ip or not deluge_ip or vpn_ip != deluge_ip or is_host_ip(deluge_ip):
-    msg = f"[D-004] Deluge leaking traffic — IP invalid or mismatched (VPN: {vpn_ip}, Deluge: {deluge_ip}) — attempting resolution."
+def get_deluge_container_ip():
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", DELUGE_CONTAINER],
+            capture_output=True, text=True
+        )
+        return result.stdout.strip()
+    except:
+        return None
+
+vpn_ip = get_vpn_tun_ip()
+deluge_ip = get_deluge_container_ip()
+host_ip = get_host_ip()
+
+if not vpn_ip or not deluge_ip or not host_ip:
+    msg = "[D-004] IP check failed — unable to resolve all IPs"
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-msg = f"[D-004] Deluge bound to VPN IP (secure): {deluge_ip}"
+if vpn_ip == deluge_ip or vpn_ip == host_ip or deluge_ip == host_ip:
+    msg = f"[D-004] Deluge leaking traffic — IP invalid or matched with host (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+
+msg = f"[D-004] Deluge bound correctly (VPN: {vpn_ip}, Deluge: {deluge_ip}, Host: {host_ip})"
 logging.info(msg)
 send_discord_message("Check 4/4 successful.")
 
