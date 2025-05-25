@@ -107,6 +107,52 @@ msg = "[D-004] Active Deluge traffic confirmed — VPN connectivity validated."
 logging.info(msg)
 send_discord_message("Check 4/4 successful.")
 
+# D-004: External IP leak detection via RPC
+
+send_discord_message("Executing check 4/4: Checking Deluge external IP...")
+
+try:
+    client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
+    client.connect()
+    deluge_ip_bytes = client.call("core.get_external_ip")
+    deluge_ip = deluge_ip_bytes.decode() if isinstance(deluge_ip_bytes, bytes) else deluge_ip_bytes
+except Exception as e:
+    msg = "[D-004] Could not retrieve external IP from Deluge."
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+
+host_ip = get_host_ip()
+vpn_ip = get_vpn_tun_ip()
+
+debug_msg = "\n".join([
+    "[DEBUG] External IP Check:",
+    f"Deluge IP: {deluge_ip}",
+    f"VPN IP: {vpn_ip or 'Unavailable'}",
+    f"Host IP: {host_ip or 'Unavailable'}"
+])
+send_discord_message(debug_msg)
+
+if not deluge_ip or not host_ip:
+    msg = "[D-004] External IP check failed — missing data."
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+
+if deluge_ip == host_ip:
+    msg = f"[D-004] Deluge IP matches host — traffic leak detected (Deluge: {deluge_ip}, Host: {host_ip})"
+    logging.error(msg)
+    send_discord_message(msg)
+    run_resolution("D-004")
+    exit(4)
+
+msg = f"[D-004] Deluge external IP verified — VPN likely active (Deluge: {deluge_ip})"
+logging.info(msg)
+send_discord_message("Check 4/4 successful.")
+
+
 # Done
 send_discord_message("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected.")
 logging.info("SEV 1 diagnostic complete — all tests passed or non-critical warnings detected.")
