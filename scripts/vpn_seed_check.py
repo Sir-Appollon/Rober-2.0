@@ -27,15 +27,20 @@ with open(torrent_path, "wb") as f:
     f.write(lt.bencode(torrent))
 print(f"[DEBUG] Created torrent file: {torrent_path}")
 
-# Load configured IP from core.conf
+# Load configured IP from core.conf (manual parse for Deluge syntax)
+outgoing_ip = None
 try:
     with open(core_conf_path, "r") as conf:
-        config = json.load(conf)
-        outgoing_ip = config.get("outgoing_interface", "undefined")
-        print(f"[DEBUG] Outgoing IP in core.conf: {outgoing_ip}")
+        for line in conf:
+            if '"outgoing_interface"' in line:
+                match = re.search(r'"outgoing_interface"\s*:\s*"([^"]+)"', line)
+                if match:
+                    outgoing_ip = match.group(1)
+                    break
+    print(f"[DEBUG] Outgoing IP in core.conf: {outgoing_ip or 'Not found'}")
 except Exception as e:
-    print(f"[DEBUG] Error reading core.conf: {e}")
-    outgoing_ip = None
+    print(f"[DEBUG] Failed to parse core.conf: {e}")
+
 
 # Get VPN IP
 try:
