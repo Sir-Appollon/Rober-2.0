@@ -231,84 +231,93 @@ send_discord_message("Check 3/4 successful.")
 # D-004: VPN-bound seeding validation using py3createtorrent
 send_discord_message("Executing check 4/4: Validating VPN seeding by Deluge using py3createtorrent...")
 
-# Temporary test file/torrent paths
+import tempfile
+import time
+
+# Paths
+TRACKER = "udp://tracker.opentrackr.org:1337/announce"
 temp_dir = Path(tempfile.gettempdir())
 test_file = temp_dir / "vpn_seed_check.bin"
-torrent_file = temp_dir / "vpn_seed_check.torrent"
+torrent_file = temp_dir / f"{test_file.name}.torrent"
 
-# Generate test file (512 KB)
+# Create test file
 with open(test_file, "wb") as f:
-    f.write(os.urandom(512 * 1024))
+    f.write(os.urandom(256 * 1024))  # 256 KB
+
+logging.debug(f"[DEBUG] Test file created at {test_file}")
 send_discord_message(f"[DEBUG] Test file created at {test_file}")
 
-# Create .torrent with py3createtorrent
+# Run py3createtorrent in temp dir
+original_cwd = os.getcwd()
+os.chdir(temp_dir)
 try:
-    result = subprocess.run(
-        ["py3createtorrent", str(test_file), "-t", "udp://tracker.opentrackr.org:1337/announce"],
-        capture_output=True,
-        text=True,
-        check=True
-    )
+    result = subprocess.run([
+        "py3createtorrent", str(test_file),
+        "-t", TRACKER
+    ], capture_output=True, text=True, check=True)
+    logging.debug("[DEBUG] Torrent created using py3createtorrent.")
     send_discord_message("[DEBUG] Torrent created using py3createtorrent.")
 except subprocess.CalledProcessError as e:
     msg = "[D-004] Torrent creation failed."
-    debug = f"[DEBUG] py3createtorrent stderr: {e.stderr.strip()}"
+    debugf = f"[DEBUG] py3createtorrent stderr: {e.stderr.strip()}"
     logging.error(msg)
-    logging.debug(debug)
+    logging.debug(debugf)
     send_discord_message(msg)
-    send_discord_message(debug)
+    send_discord_message(debugf)
+    run_resolution("D-004")
+    os.chdir(original_cwd)
+    exit(4)
+os.chdir(original_cwd)
+
+# Verify torrent exists
+if not torrent_file.exists():
+    msg = "[D-004] Torrent file not found after creation."
+    logging.error(msg)
+    send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-# Extract infohash from output (optional)
-infohash_match = re.search(r"Infohash:\s+([a-f0-9]{40})", result.stdout)
-torrent_infohash = infohash_match.group(1) if infohash_match else "N/A"
-send_discord_message(f"[DEBUG] Infohash: {torrent_infohash}")
-
-# Connect to Deluge and inject
+# Connect to Deluge
 try:
     client = DelugeRPCClient("localhost", 58846, DELUGE_USER, DELUGE_PASS, False)
     client.connect()
-except Exception:
-    msg = "[D-004] Failed to connect to Deluge RPC."
+except Exception as e:
+    msg = "[D-004] Could not connect to Deluge RPC for torrent injection."
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-# Add torrent
+# Inject torrent
 torrent_id = None
 try:
-    with open(torrent_file, "rb") as tf:
-        torrent_data = tf.read()
+    with open(torrent_file, "rb") as f:
+        torrent_data = f.read()
     torrent_id = client.call("core.add_torrent_file", torrent_file.name, torrent_data, {})
-    send_discord_message(f"[DEBUG] Test torrent injected into Deluge with ID: {torrent_id}")
-except Exception as e:
+except Exception:
     msg = "[D-004] Failed to inject torrent into Deluge."
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
     exit(4)
 
-# Wait 45 sec to monitor upload
+# Wait and confirm upload
 time.sleep(45)
-
-# Confirm upload
 try:
     status = client.call("core.get_torrents_status", {}, ["name", "state", "total_uploaded"])
     match = next((k for k, v in status.items() if b"vpn_seed_check" in v[b"name"]), None)
     if match and status[match][b"state"] == b"Seeding" and status[match][b"total_uploaded"] > 0:
-        msg = "[D-004] VPN-bound Deluge seeding confirmed — test successful."
+        msg = "[D-004] Deluge confirmed seeding via VPN — validated."
         logging.info(msg)
         send_discord_message("Check 4/4 successful.")
     else:
-        msg = "[D-004] Seeding failed — no upload detected."
+        msg = "[D-004] Seeding test failed — torrent did not upload."
         logging.error(msg)
         send_discord_message(msg)
         run_resolution("D-004")
         exit(4)
-except Exception as e:
-    msg = "[D-004] Failed to verify seeding."
+except Exception:
+    msg = "[D-004] Could not confirm torrent activity."
     logging.error(msg)
     send_discord_message(msg)
     run_resolution("D-004")
@@ -316,8 +325,8 @@ except Exception as e:
 
 # Cleanup
 try:
-    if torrent_id:
-        client.call("core.remove_torrent", torrent_id, True)
+    if match:
+        client.call("core.remove_torrent", match, True)
     test_file.unlink(missing_ok=True)
     torrent_file.unlink(missing_ok=True)
 except:
