@@ -244,7 +244,7 @@ send_discord_message(f"[DEBUG] Test file created at {test_file}")
 # Create .torrent with py3createtorrent
 try:
     result = subprocess.run(
-        ["py3createtorrent", str(test_file), "-a", "udp://tracker.opentrackr.org:1337/announce"],
+        ["py3createtorrent", str(test_file), "-t", "udp://tracker.opentrackr.org:1337/announce"],
         capture_output=True,
         text=True,
         check=True
