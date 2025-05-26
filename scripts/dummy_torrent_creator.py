@@ -10,7 +10,7 @@ def debug(msg):
         print(f"[DEBUG - {SCRIPT}] {msg}")
 
 # Paths
-dummy_dir = Path("/shared")
+dummy_dir = Path("shared").resolve()
 dummy_file = dummy_dir / "vpn_seed_check_peer.txt"
 torrent_file = dummy_dir / "dummy.torrent"
 
