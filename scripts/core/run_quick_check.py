@@ -42,7 +42,10 @@ log_file = "/mnt/data/entry_log_quick_check.log"
 logging.basicConfig(filename=log_file, level=logging.DEBUG, format="%(asctime)s - %(message)s")
 
 # Load environment
-env_paths = ["/app/.env", "../.env"]
+env_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+]
 env_loaded = False
 for p in env_paths:
     if load_dotenv(p):
