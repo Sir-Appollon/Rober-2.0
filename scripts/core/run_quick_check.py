@@ -28,6 +28,7 @@ from plexapi.server import PlexServer
 from discord.discord_notify import send_discord_message
 
 
+
 mode = "normal"
 start_time = time.time()
 
