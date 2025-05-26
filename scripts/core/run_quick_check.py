@@ -140,7 +140,18 @@ def check_deluge_activity():
 def check_radarr_sonarr():
     return check_container("radarr") and check_container("sonarr")
 
-def get_deluge_config_ip(path="/app/config/deluge/core.conf"):
+def get_deluge_config_ip():
+    # Detect Docker context based on environment or path presence
+    docker_path = "/app/config/deluge/core.conf"
+    local_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config", "deluge", "core.conf"))
+
+    if os.path.exists(docker_path):
+        path = docker_path
+    elif os.path.exists(local_path):
+        path = local_path
+    else:
+        path = docker_path  # fallback
+
     try:
         with open(path, "r") as f:
             config = json.load(f)
@@ -152,6 +163,7 @@ def get_deluge_config_ip(path="/app/config/deluge/core.conf"):
         if mode == "debug":
             print(f"[DEBUG - run_quick_check.py] Failed to read Deluge config: {e}")
         return None
+
 
 def get_vpn_ip():
     if not docker_available():
