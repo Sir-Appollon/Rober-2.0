@@ -34,7 +34,7 @@ spec.loader.exec_module(discord_notify)
 send_discord_message = discord_notify.send_discord_message
 
 # -- Mode and timer --
-mode = "normal"
+mode = "debug"
 start_time = time.time()
 
 # -- Logging setup --
