@@ -25,7 +25,12 @@ import psutil
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
-from discord.discord_notify import send_discord_message
+import importlib.util
+discord_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py"))
+spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
+discord_notify = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(discord_notify)
+send_discord_message = discord_notify.send_discord_message
 
 
 
