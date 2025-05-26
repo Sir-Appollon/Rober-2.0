@@ -14,6 +14,8 @@ Outputs:
 """
 
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import subprocess
 import logging
 import json
@@ -23,7 +25,8 @@ import psutil
 from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
-from scripts.discord.discord_notify import send_discord_message
+from discord.discord_notify import send_discord_message
+
 
 mode = "normal"
 start_time = time.time()
