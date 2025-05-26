@@ -1,3 +1,21 @@
+"""
+File: Health_monit.py
+Purpose: Automatically evaluate the health of core services (containers, Plex, Deluge, DuckDNS, SSL, NGINX).
+
+Inputs:
+- Environment variables: PLEX_SERVER, PLEX_TOKEN, DELUGE_PASSWORD, DOMAIN
+- Docker container states
+- Network responses (HTTP, SSL)
+
+Outputs:
+- Log file: /mnt/data/health_automatic_monitoring.log
+- Returns success/failure of critical checks
+- Prints debug information if enabled
+
+Triggered Files/Services:
+- This is an independent monitor, called periodically or manually
+"""
+
 import os
 import subprocess
 import logging
@@ -8,11 +26,14 @@ from dotenv import load_dotenv
 from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 
-# Load environment
+# Mode toggle: set to "debug" to enable verbose outputs
+mode = "normal"
+
+# Load environment variables
 if not load_dotenv("/app/.env"):
     load_dotenv("../.env")
 
-# Logging setup for Health_monit (automatic monitoring)
+# Setup logging
 log_file = "/mnt/data/health_automatic_monitoring.log"
 logging.basicConfig(
     filename=log_file,
@@ -20,7 +41,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Config
+# Environment configurations
 containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 plex_url = os.getenv("PLEX_SERVER")
 plex_token = os.getenv("PLEX_TOKEN")
@@ -31,11 +52,13 @@ logging.getLogger("deluge_client.client").setLevel(logging.WARNING)
 
 def check_docker(container):
     try:
-        logging.debug(f"Checking Docker container: {container}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] Checking Docker container: {container}")
         out = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", container],
                              capture_output=True, text=True)
         result = out.stdout.strip() == "true"
-        logging.debug(f"Docker {container} running: {result}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] Docker {container} running: {result}")
         return result
     except Exception as e:
         logging.error(f"Error checking Docker container {container}: {e}")
@@ -48,7 +71,8 @@ def get_failing_services():
 
 def check_plex_internal():
     try:
-        logging.debug("Checking internal Plex access")
+        if mode == "debug":
+            print("[DEBUG - Health_monit.py] Checking internal Plex access")
         PlexServer(plex_url, plex_token)
         return True
     except Exception as e:
@@ -57,9 +81,11 @@ def check_plex_internal():
 
 def check_duckdns():
     try:
-        logging.debug(f"Checking DuckDNS domain: {domain}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] Checking DuckDNS domain: {domain}")
         r = requests.get(domain, timeout=5, allow_redirects=True)
-        logging.debug(f"DuckDNS status code: {r.status_code}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] DuckDNS HTTP status: {r.status_code}")
         return r.status_code < 500
     except Exception as e:
         logging.error(f"DuckDNS check failed: {e}")
@@ -68,14 +94,16 @@ def check_duckdns():
 def check_ssl():
     try:
         hostname = domain.replace("https://", "").split("/")[0]
-        logging.debug(f"Checking SSL for hostname: {hostname}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] Checking SSL for: {hostname}")
         ctx = ssl.create_default_context()
         with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
             s.settimeout(5)
             s.connect((hostname, 443))
             cert = s.getpeercert()
             result = cert is not None
-            logging.debug(f"SSL certificate present: {result}")
+            if mode == "debug":
+                print(f"[DEBUG - Health_monit.py] SSL cert presence: {result}")
             return result
     except Exception as e:
         logging.error(f"SSL check failed: {e}")
@@ -83,9 +111,11 @@ def check_ssl():
 
 def check_plex_remote():
     try:
-        logging.debug("Checking remote Plex access")
+        if mode == "debug":
+            print("[DEBUG - Health_monit.py] Checking remote Plex access")
         response = requests.get(f"{domain}/web", timeout=5, verify=True)
-        logging.debug(f"Remote Plex access status code: {response.status_code}")
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] Remote Plex HTTP status: {response.status_code}")
         return response.status_code < 500
     except Exception as e:
         logging.error(f"Remote Plex check failed: {e}")
@@ -93,7 +123,8 @@ def check_plex_remote():
 
 def check_deluge():
     try:
-        logging.debug("Checking Deluge RPC access")
+        if mode == "debug":
+            print("[DEBUG - Health_monit.py] Checking Deluge RPC access")
         client = DelugeRPCClient("localhost", 58846, "localclient", deluge_password, False)
         client.connect()
         return True
@@ -103,11 +134,14 @@ def check_deluge():
 
 def check_nginx():
     try:
-        logging.debug("Checking Nginx configuration")
+        if mode == "debug":
+            print("[DEBUG - Health_monit.py] Checking NGINX configuration")
         result = subprocess.run(["docker", "exec", "nginx-proxy", "nginx", "-t"],
                                 capture_output=True, text=True)
         output = result.stdout + result.stderr
         ok = "syntax is ok" in output.lower()
+        if mode == "debug":
+            print(f"[DEBUG - Health_monit.py] NGINX syntax check: {ok}")
         logging.debug(f"Nginx config result: {output.strip()}")
         return ok
     except Exception as e:

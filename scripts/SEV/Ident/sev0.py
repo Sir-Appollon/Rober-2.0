@@ -1,3 +1,23 @@
+"""
+File: sev0.py
+Purpose: Diagnose and resolve SEV 0 condition (Plex local or external access failure).
+
+Inputs:
+- Environment variables: DOMAIN, PLEX_SERVER, PLEX_TOKEN
+- Container state (plex-server, nginx-proxy)
+- SSL certificate of domain
+- Plex local/remote HTTP access
+
+Outputs:
+- Logs diagnostic steps to /mnt/data/sev0_diagnostic.log
+- Sends status messages to Discord
+- Terminates on first critical failure
+
+Triggered Files/Services:
+- Sends Discord messages via scripts/discord/discord_notify.py
+- Interacts with Docker and remote services
+"""
+
 import os
 import ssl
 import socket
@@ -9,9 +29,12 @@ from plexapi.server import PlexServer
 import sys
 from pathlib import Path
 
-# Path fix to import discord_notify from parent
-sys.path.append("..")
-from discord_notify import send_discord_message
+# Mode: "normal" or "debug"
+mode = "normal"
+
+# Path fix to import from /scripts/discord/
+sys.path.append("/app/scripts")
+from scripts.discord.discord_notify import send_discord_message
 
 # Logging
 log_file = "/mnt/data/sev0_diagnostic.log"
@@ -22,20 +45,21 @@ env_loaded = False
 for path in ["/app/.env", "../.env", "../../.env"]:
     if Path(path).is_file():
         load_dotenv(dotenv_path=path)
-        print(f"[DEBUG] .env loaded from {path}")
+        if mode == "debug":
+            print(f"[DEBUG - sev0.py] .env loaded from {path}")
         env_loaded = True
         break
-if not env_loaded:
-    print("[DEBUG] No .env file found in known paths.")
+if not env_loaded and mode == "debug":
+    print("[DEBUG - sev0.py] No .env file found in known paths.")
 
 DOMAIN = os.getenv("DOMAIN")
 PLEX_URL = os.getenv("PLEX_SERVER")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
 
-# Notify start
+# Start diagnostics
 send_discord_message("Initiating SEV 0 diagnostic sequence for Plex access failure.")
 
-# P-001
+# P-001: Plex container status
 send_discord_message("Executing check 1/6: Verifying Plex container status...")
 def plex_container_running():
     try:
@@ -52,7 +76,7 @@ if not plex_container_running():
     exit(1)
 send_discord_message("Check 1/6 successful.")
 
-# P-002
+# P-002: Plex internal access
 send_discord_message("Executing check 2/6: Verifying local Plex accessibility...")
 def plex_accessible_local():
     try:
@@ -68,12 +92,12 @@ if not plex_accessible_local():
     exit(2)
 send_discord_message("Check 2/6 successful.")
 
-# P-003
+# P-003: DuckDNS domain resolution
 send_discord_message("Executing check 3/6: Validating DuckDNS domain resolution...")
 def duckdns_accessible():
     try:
         r = requests.get(DOMAIN, timeout=5, allow_redirects=True)
-        return r.status_code < 500  # Accept 401/403 as resolving
+        return r.status_code < 500
     except:
         return False
 
@@ -84,7 +108,7 @@ if not duckdns_accessible():
     exit(3)
 send_discord_message("Check 3/6 successful.")
 
-# P-004
+# P-004: SSL certificate check
 send_discord_message("Executing check 4/6: Validating SSL certificate...")
 def ssl_certificate_valid():
     try:
@@ -94,21 +118,8 @@ def ssl_certificate_valid():
             s.settimeout(5)
             s.connect((hostname, 443))
             cert = s.getpeercert()
-            return cert is not None
-    except:
-        return False
-
-def ssl_certificate_valid():
-    try:
-        hostname = DOMAIN.replace("https://", "").split("/")[0]
-        ctx = ssl.create_default_context()
-        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
-            s.settimeout(5)
-            s.connect((hostname, 443))
-            cert = s.getpeercert()
             if cert:
-                expire_date = cert["notAfter"]
-                return expire_date
+                return cert["notAfter"]
     except:
         return None
 
@@ -120,7 +131,7 @@ if not ssl_expiry:
 else:
     send_discord_message(f"Check 4/6 successful — SSL cert expires: {ssl_expiry}")
 
-# P-005
+# P-005: Remote Plex access
 send_discord_message("Executing check 5/6: Testing remote Plex accessibility...")
 def plex_accessible_remote():
     try:
@@ -136,7 +147,7 @@ if not plex_accessible_remote():
 else:
     send_discord_message("Check 5/6 successful.")
 
-# P-006
+# P-006: Nginx config test
 send_discord_message("Executing check 6/6: Verifying Nginx configuration...")
 def nginx_config_valid():
     try:
@@ -146,10 +157,12 @@ def nginx_config_valid():
             text=True
         )
         output = result.stdout.lower() + result.stderr.lower()
-        print("[DEBUG] Nginx test output:", output)
+        if mode == "debug":
+            print(f"[DEBUG - sev0.py] Nginx test output: {output}")
         return "syntax is ok" in output and "test is successful" in output
     except Exception as e:
-        print(f"[DEBUG] Nginx config check failed: {e}")
+        if mode == "debug":
+            print(f"[DEBUG - sev0.py] Nginx config check failed: {e}")
         return False
 
 if not nginx_config_valid():
