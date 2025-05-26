@@ -20,12 +20,12 @@ services:
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
     ports:
-      - 9091:9091 # Transmission Web UI
-      - 8112:8112 # Deluge Web UI
-      - 58846:58846 # Deluge RPC
-      - 8081:8081
+      - 9091:9091     # Transmission Web UI
+      - 8112:8112     # Deluge Web UI
+      - 58846:58846   # Deluge RPC
+      - 8081:8081     # Extra optional
     volumes:
-      - ./config/vpn:/config/vpn
+      - ${ROOT}/config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
 
@@ -39,53 +39,47 @@ services:
       - TZ=${TZ}
     volumes:
       - ${ROOT}/config/deluge:/config
-      - ${ROOT}/scripts:/seedcheck
-    #  - ${ROOT}/scripts:/app
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-    # depends_on:
-    #   - vpn
     restart: always
 
-  torrent_seeder:
-    image: linuxserver/qbittorrent
-    container_name: torrent_seeder
-    network_mode: service:vpn
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=America/Toronto
-      - WEBUI_PORT=8081
-    volumes:
-      - ./seeder_data:/downloads
-      - ./shared:/shared
-      - ./config/seeder:/config
-    restart: unless-stopped
-
+  # torrent_seeder:
+  #   image: linuxserver/qbittorrent
+  #   container_name: torrent_seeder
+  #   network_mode: service:vpn
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=America/Toronto
+  #     - WEBUI_PORT=8081
+  #   volumes:
+  #     - ${ROOT}/seeder_data:/downloads
+  #     - ${ROOT}/shared:/shared
+  #     - ${ROOT}/config/seeder:/config
+  #   restart: unless-stopped
 
   # vpn_peer_seed:
   #   build:
-  #     context: ./scripts
+  #     context: ${ROOT}/scripts
   #     dockerfile: Dockerfile
   #   container_name: vpn_peer_seed
   #   network_mode: service:vpn
   #   volumes:
-  #     - ./shared:/shared
+  #     - ${ROOT}/shared:/shared
   #   depends_on:
   #     - vpn
 
   # sev1_diag:
   #   build:
-  #     context: ./scripts
+  #     context: ${ROOT}/scripts
   #     dockerfile: Dockerfile
   #   volumes:
   #     - ${ROOT}/scripts:/app
   #     - /mnt/data:/mnt/data
   #   restart: "no"
 
-
   # script-monitoring:
-  #   build: ./scripts
+  #   build: ${ROOT}/scripts
   #   container_name: script-monitoring
   #   command: python deluge_control.py
   #   network_mode: service:vpn
@@ -244,7 +238,7 @@ services:
 
   # health:
   #   build:
-  #     context: ./scripts
+  #     context: ${ROOT}/scripts
   #     dockerfile: Dockerfile
   #   env_file:
   #     - ${ROOT}/.env
@@ -258,7 +252,7 @@ services:
 
   health:
     build:
-      context: ./scripts
+      context: ${ROOT}/scripts
       dockerfile: Dockerfile
     volumes:
       - ${ROOT}/scripts:/app
@@ -270,7 +264,7 @@ services:
 
   listener:
     build:
-      context: ./scripts
+      context: ${ROOT}/scripts
       dockerfile: Dockerfile
     env_file:
       - ${ROOT}/.env
@@ -283,7 +277,7 @@ services:
 
   # monitor:
   #   build:
-  #     context: ./scripts
+  #     context: ${ROOT}/scripts
   #     dockerfile: Dockerfile
   #   env_file:
   #     - ${ROOT}/.env
