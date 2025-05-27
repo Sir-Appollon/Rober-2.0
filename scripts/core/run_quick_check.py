@@ -67,8 +67,8 @@ print("[DEBUG - run_quick_check.py - NETWORK - 1] Fetching VPN and Deluge IPs")
 try:
     vpn_ip_pub = subprocess.check_output(["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]).decode().strip()
     deluge_ip_pub = subprocess.check_output(["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]).decode().strip()
-    vpn_ip_int = subprocess.check_output(["docker", "exec", "vpn", "hostname", "-I"]).decode().strip().split()[0]
-    deluge_ip_int = subprocess.check_output(["docker", "exec", "deluge", "hostname", "-I"]).decode().strip().split()[0]
+    vpn_ip_int = subprocess.check_output(["docker", "exec", "vpn", "hostname", "-i"]).decode().strip().split()[0]
+    deluge_ip_int = subprocess.check_output(["docker", "exec", "deluge", "hostname", "-i"]).decode().strip().split()[0]
 
     plex_msg_lines.append(f"[VPN IP] {vpn_ip_pub}")
     plex_msg_lines.append(f"[DELUGE IP] {deluge_ip_pub}")
