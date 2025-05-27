@@ -2,6 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+COPY scripts/.env /app/.env
 COPY core/ /app/
 COPY discord/ /app/discord/
 COPY requirements.txt /app/
