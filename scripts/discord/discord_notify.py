@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 import time
 
 # Mode: "normal" or "debug"
-mode = "debug"
+mode = "normal"
 
 # Load .env
 print("[DEBUG - discord_notify.py] Attempting to load .env")
