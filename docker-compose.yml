@@ -185,56 +185,56 @@ services:
       - ${ROOT}/config/nginx/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
     restart: unless-stopped
 
-  ### --- Monitoring Stack --- ###
+  # ### --- Monitoring Stack --- ###
 
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - ${ROOT}/config/grafana:/var/lib/grafana
-    networks:
-      - monitoring
-    restart: unless-stopped
+  # grafana:
+  #   image: grafana/grafana
+  #   container_name: grafana
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ${ROOT}/config/grafana:/var/lib/grafana
+  #   networks:
+  #     - monitoring
+  #   restart: unless-stopped
 
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    restart: unless-stopped
-    volumes:
-      - ${ROOT}/config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
-    networks:
-      - monitoring
+  # prometheus:
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ${ROOT}/config/prometheus:/etc/prometheus
+  #     - prometheus-data:/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   networks:
+  #     - monitoring
 
-  plex-exporter:
-    image: ghcr.io/jsclayton/prometheus-plex-exporter
-    container_name: plex-exporter
-    restart: unless-stopped
-    environment:
-      - PLEX_TOKEN=${PLEX_TOKEN}
-      - PLEX_SERVER=${PLEX_SERVER}
-    ports:
-      - "9000:9000"
-    networks:
-      - monitoring
+  # plex-exporter:
+  #   image: ghcr.io/jsclayton/prometheus-plex-exporter
+  #   container_name: plex-exporter
+  #   restart: unless-stopped
+  #   environment:
+  #     - PLEX_TOKEN=${PLEX_TOKEN}
+  #     - PLEX_SERVER=${PLEX_SERVER}
+  #   ports:
+  #     - "9000:9000"
+  #   networks:
+  #     - monitoring
 
-  node_exporter:
-    image: quay.io/prometheus/node-exporter:latest
-    container_name: node_exporter
-    command:
-      - '--path.rootfs=/host'
-    networks:
-      - monitoring
-    pid: host
-    ports:
-      - "9100:9100"
-    restart: unless-stopped
-    volumes:
-      - '/:/host:ro,rslave'
+  # node_exporter:
+  #   image: quay.io/prometheus/node-exporter:latest
+  #   container_name: node_exporter
+  #   command:
+  #     - '--path.rootfs=/host'
+  #   networks:
+  #     - monitoring
+  #   pid: host
+  #   ports:
+  #     - "9100:9100"
+  #   restart: unless-stopped
+  #   volumes:
+  #     - '/:/host:ro,rslave'
 
   # health:
   #   build:
