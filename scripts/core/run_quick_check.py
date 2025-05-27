@@ -5,7 +5,7 @@
 # [... entire previous implementation was here ...]
 
 # ===============================
-# UPDATED FULL TESTING VERSION
+# REACTIVATED PLEX TEST VERSION
 # ===============================
 import os
 import sys
@@ -48,16 +48,53 @@ for p in [
 if not env_loaded:
     print("[DEBUG - run_quick_check.py] No .env file found.")
 
-# Plex session count only
+# Plex test (accessibility, session count, transcode)
 PLEX_URL = os.getenv("PLEX_SERVER")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
 print("[DEBUG - run_quick_check.py] Connecting to Plex")
+plex_msg_lines = []
 try:
     plex = PlexServer(PLEX_URL, PLEX_TOKEN)
     sessions = plex.sessions()
     session_count = len(sessions)
+    plex_msg_lines.append(f"[PLEX STATUS] Active sessions: {session_count}")
     print(f"[DEBUG] Plex active session count: {session_count}")
-    send_msg(f"[PLEX STATUS] Active sessions: {session_count}")
+
+    transcode_count = 0
+    for session in sessions:
+        try:
+            if hasattr(session, 'transcodeSession') and session.transcodeSession:
+                transcode_count += 1
+        except Exception as e:
+            print(f"[DEBUG] Transcode check failed on session: {e}")
+
+    if transcode_count > 0:
+        plex_msg_lines.append(f"[INFO] {transcode_count} session(s) using transcoding")
+    else:
+        plex_msg_lines.append("[INFO] No transcoding in use")
+
+    # Local accessibility test
+    print("[DEBUG - run_quick_check.py] Testing local access to Plex with curl")
+    try:
+        response = subprocess.run([
+            "curl", "-s", "--max-time", "5", f"{PLEX_URL}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        if response.returncode == 0:
+            plex_msg_lines.append("[LOCAL ACCESS] Plex accessible locally")
+        else:
+            plex_msg_lines.append("[LOCAL ACCESS] Plex NOT accessible locally")
+    except Exception as e:
+        plex_msg_lines.append(f"[LOCAL ACCESS] Plex local test failed: {e}")
+
+    # External accessibility test skipped — would require external IP or DNS
+    plex_msg_lines.append("[EXTERNAL ACCESS] External check requires external IP/domain")
+
+    for line in plex_msg_lines:
+        print(f"[DEBUG] {line}")
+    send_msg("\n".join(plex_msg_lines))
+
 except Exception as e:
     print(f"[DEBUG] Plex session fetch failed: {e}")
     send_msg(f"[CRITICAL ERROR] Plex access failed: {e}")
