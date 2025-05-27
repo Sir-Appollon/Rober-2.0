@@ -30,7 +30,7 @@ from deluge_client import DelugeRPCClient
 from pathlib import Path
 
 # Mode: "normal" or "debug"
-mode = "normal"
+mode = "debug"
 
 # Fix path to import notifier
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
