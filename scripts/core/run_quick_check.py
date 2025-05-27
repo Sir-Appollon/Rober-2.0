@@ -52,21 +52,30 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# Load .env
-print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load .env")
-env_loaded = False
-for p in [
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
-]:
-    if load_dotenv(p):
-        print(f"[DEBUG - run_quick_check.py - ENV - 2] Loaded environment file: {p}")
-        env_loaded = True
-        break
-if not env_loaded:
-    print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
+# # Load .env
+# print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load .env")
+# env_loaded = False
+# for p in [
+#     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+#     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+# ]:
+#     if load_dotenv(p):
+#         print(f"[DEBUG - run_quick_check.py - ENV - 2] Loaded environment file: {p}")
+#         env_loaded = True
+#         break
+# if not env_loaded:
+#     print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
+# else:
+#     print("[DEBUG - run_quick_check.py - ENV - 4] Environment variables loaded successfully")
+
+print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load /app/.env")
+if load_dotenv("/app/.env"):
+    print("[DEBUG - run_quick_check.py - ENV - 2] Loaded /app/.env")
+    env_loaded = True
 else:
-    print("[DEBUG - run_quick_check.py - ENV - 4] Environment variables loaded successfully")
+    print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
+    env_loaded = False
+
 
 plex_msg_lines = []
 
