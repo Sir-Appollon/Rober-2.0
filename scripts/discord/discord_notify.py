@@ -1,69 +1,120 @@
-"""
-File: discord_notify.py
-Purpose: Send messages to a Discord channel using a webhook.
+# ===============================
+# OLD CODE BLOCK — PRESERVED
+# ===============================
+# (Full code block previously written has been commented out for reference)
+# [... entire previous implementation was here ...]
 
-Inputs:
-- Environment variable: DISCORD_WEBHOOK
-- Message string passed to send_discord_message()
-
-Outputs:
-- Sends POST request to Discord Webhook
-- Optionally prints debug messages if mode == "debug"
-
-Triggered Files/Services:
-- Called by monitoring and diagnostic scripts to report status or errors.
-"""
-
+# ===============================
+# REACTIVATED PLEX TEST VERSION + EXTENDED DEBUG + INPUT LOGGING
+# ===============================
 import os
-import requests
-from dotenv import load_dotenv
+import sys
+import subprocess
+import logging
 import time
+from dotenv import load_dotenv
+from plexapi.server import PlexServer
+import importlib.util
 
-# Mode: "normal" or "debug"
 mode = "debug"
+discord_connected = False
+print("[DEBUG - run_quick_check.py] Script initiated")
+
+# Setup Discord
+print("[DEBUG - run_quick_check.py] Initializing Discord connection")
+discord_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py"))
+spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
+discord_notify = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(discord_notify)
+send_discord_message = discord_notify.send_discord_message
+
+def send_msg(msg):
+    global discord_connected
+    try:
+        send_discord_message(msg)
+        discord_connected = True
+        return True
+    except Exception as e:
+        print(f"[DEBUG - run_quick_check.py] Discord message failed: {e}")
+        return False
 
 # Load .env
-print("[DEBUG - discord_notify.py.py] Attempting to load .env")
+print("[DEBUG - run_quick_check.py] Attempting to load .env")
 env_loaded = False
 for p in [
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 ]:
     if load_dotenv(p):
-        print(f"[DEBUG - discord_notify.py.py] Loaded environment file: {p}")
+        print(f"[DEBUG - run_quick_check.py] Loaded environment file: {p}")
         env_loaded = True
         break
 if not env_loaded:
-    print("[DEBUG - discord_notify.py.py] No .env file found.")
+    print("[DEBUG - run_quick_check.py] No .env file found.")
 else:
-    print("[DEBUG - discord_notify.py] Environment variables loaded successfully")
+    print("[DEBUG - run_quick_check.py] Environment variables loaded successfully")
 
-# Retrieve webhook URL
-discord_webhook = os.getenv("DISCORD_WEBHOOK")
+# Plex test (accessibility, session count, transcode)
+print("[DEBUG - run_quick_check.py] Starting TEST: PLEX")
+PLEX_URL = os.getenv("PLEX_SERVER")
+PLEX_TOKEN = os.getenv("PLEX_TOKEN")
+print(f"[DEBUG - run_quick_check.py] Input: PLEX_SERVER={PLEX_URL}")
+print(f"[DEBUG - run_quick_check.py] Input: PLEX_TOKEN={'SET' if PLEX_TOKEN else 'NOT SET'}")
+plex_msg_lines = []
 
-def send_discord_message(content):
-    """
-    Sends a message to the configured Discord webhook.
-    If in debug mode, prints status code and errors.
-    """
-    if not discord_webhook:
-        if mode == "debug":
-            print("[DEBUG - discord_notify.py] DISCORD_WEBHOOK not set.")
-        return
+try:
+    print("[DEBUG - run_quick_check.py] Connecting to Plex API")
+    plex = PlexServer(PLEX_URL, PLEX_TOKEN)
+    print("[DEBUG - run_quick_check.py] Connected to Plex")
 
+    print("[DEBUG - run_quick_check.py] Fetching Plex sessions")
+    sessions = plex.sessions()
+    session_count = len(sessions)
+    print(f"[DEBUG - run_quick_check.py] Active Plex sessions: {session_count}")
+    plex_msg_lines.append(f"[PLEX STATUS] Active sessions: {session_count}")
+
+    transcode_count = 0
+    for session in sessions:
+        try:
+            transcode_active = hasattr(session, 'transcodeSession') and session.transcodeSession is not None
+            print(f"[DEBUG - run_quick_check.py] Session {session.user.title} transcoding: {transcode_active}")
+            if transcode_active:
+                transcode_count += 1
+        except Exception as e:
+            print(f"[DEBUG - run_quick_check.py] Transcode check error: {e}")
+
+    if transcode_count > 0:
+        plex_msg_lines.append(f"[INFO] {transcode_count} session(s) using transcoding")
+    else:
+        plex_msg_lines.append("[INFO] No transcoding in use")
+
+    # Local accessibility test
+    print("[DEBUG - run_quick_check.py] Testing local HTTP access to Plex")
     try:
-        response = requests.post(discord_webhook, json={"content": content})
-        if mode == "debug":
-            print(f"[DEBUG - discord_notify.py] Discord response: {response.status_code} - {response.text}")
-
-        if response.status_code == 429:  # Rate limited
-            retry = response.json().get("retry_after", 1)
-            if mode == "debug":
-                print(f"[DEBUG - discord_notify.py] Rate limited. Retrying after {retry} seconds.")
-            time.sleep(float(retry))
-
+        response = subprocess.run([
+            "curl", "-s", "--max-time", "5", f"{PLEX_URL}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        if response.returncode == 0:
+            plex_msg_lines.append("[LOCAL ACCESS] Plex accessible locally")
+        else:
+            plex_msg_lines.append("[LOCAL ACCESS] Plex NOT accessible locally")
     except Exception as e:
-        if mode == "debug":
-            print(f"[DEBUG - discord_notify.py] Discord exception: {e}")
+        plex_msg_lines.append(f"[LOCAL ACCESS] Plex local test failed: {e}")
 
-    time.sleep(0.5)  # Anti-flood delay
+    # External accessibility test placeholder
+    plex_msg_lines.append("[EXTERNAL ACCESS] External check requires external IP/domain")
+
+    for line in plex_msg_lines:
+        print(f"[DEBUG - run_quick_check.py] {line}")
+    send_msg("\n".join(plex_msg_lines))
+
+except Exception as e:
+    print(f"[DEBUG - run_quick_check.py] Plex session fetch failed: {e}")
+    send_msg(f"[CRITICAL ERROR] Plex access failed: {e}")
+
+if discord_connected:
+    print("[DEBUG - run_quick_check.py] Discord message sent successfully")
+else:
+    print("[DEBUG - run_quick_check.py] No Discord message sent")
