@@ -218,11 +218,11 @@ try:
 
     for line in plex_msg_lines:
         print(f"[DEBUG - run_quick_check.py - PLEX - INFO] {line}")
-    send_msg("Quick data acquisition : done")
+    send_discord_message("Quick data acquisition : done")
 
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
-    send_msg("Quick data acquisition : done with error")
+    send_discord_message("Quick data acquisition : done with error")
 
 if discord_connected:
     print("[DEBUG - run_quick_check.py - DISCORD - SUCCESS] Discord message sent successfully")
