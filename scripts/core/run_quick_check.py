@@ -295,6 +295,42 @@ else:
 # except Exception as e:
 #     logging.error(f"[LOGGING] Failed to write numeric log data: {e}")
 
+deluge_stats = {
+    "num_downloading": 0,
+    "num_seeding": 0,
+    "download_rate": 0.0,
+    "upload_rate": 0.0
+}
+try:
+    deluge_client = DelugeRPCClient("127.0.0.1", 58846, "localclient", os.getenv("DELUGE_PASSWORD"))
+    deluge_client.connect()
+    torrents = deluge_client.call("core.get_torrents_status", {}, ["state", "download_payload_rate", "upload_payload_rate"])
+    for t in torrents.values():
+        if t["state"] == "Downloading":
+            deluge_stats["num_downloading"] += 1
+        elif t["state"] == "Seeding":
+            deluge_stats["num_seeding"] += 1
+        deluge_stats["download_rate"] += t.get("download_payload_rate", 0.0)
+        deluge_stats["upload_rate"] += t.get("upload_payload_rate", 0.0)
+    deluge_stats["download_rate"] /= 1024
+    deluge_stats["upload_rate"] /= 1024
+except Exception as e:
+    print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
+
+disk_status = {}
+for part in psutil.disk_partitions():
+    try:
+        usage = shutil.disk_usage(part.mountpoint)
+        disk_status[part.mountpoint] = {
+            "total_gb": round(usage.total / (1024**3), 2),
+            "used_gb": round(usage.used / (1024**3), 2),
+            "free_gb": round(usage.free / (1024**3), 2)
+        }
+    except Exception as e:
+        print(f"[DEBUG - run_quick_check.py - STORAGE - Error] {part.mountpoint}: {e}")
+        continue
+
+
 try:
     data_entry = {
         "docker_services": {
