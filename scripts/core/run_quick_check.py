@@ -36,6 +36,7 @@ for p in env_paths:
             print(f"[DEBUG - run_quick_check.py] Loaded environment file: {p}")
         break
 
+# Configs
 deluge_config = {
     "host": "localhost",
     "port": 58846,
@@ -48,7 +49,8 @@ plex_config = {
 }
 containers = ["vpn", "deluge", "plex-server", "radarr", "sonarr"]
 
-# Helper functions
+# Docker availability
+
 def docker_available():
     try:
         subprocess.check_output(["docker", "ps"], stderr=subprocess.DEVNULL)
@@ -66,10 +68,12 @@ def check_container(name):
     except:
         return False
 
+# Plex monitoring
+
 def check_plex_local():
+    print("[DEBUG] Starting Plex test")
     try:
-        if mode == "debug":
-            print(f"[DEBUG - check_plex_local] Checking Plex connection at {plex_config['url']}")
+        print(f"[DEBUG] Connecting to Plex server at {plex_config['url']}")
         server = PlexServer(plex_config["url"], plex_config["token"])
         sessions = server.sessions()
         info_lines = []
@@ -80,9 +84,7 @@ def check_plex_local():
             resolution = getattr(session, 'videoResolution', 'Unknown')
             transcode = getattr(session, 'transcode', None)
             transcode_status = 'Yes' if transcode else 'No'
-            info_lines.append(f"User: {session.user.title}, Client: {session.player.title}, File: {session.title}, \
-Video: {video_stream.codec if video_stream else 'N/A'}, {resolution}, \
-Audio: {audio_stream.codec if audio_stream else 'N/A'}, Transcode: {transcode_status}")
+            info_lines.append(f"User: {session.user.title}, Client: {session.player.title}, File: {session.title}, Video: {video_stream.codec if video_stream else 'N/A'}, {resolution}, Audio: {audio_stream.codec if audio_stream else 'N/A'}, Transcode: {transcode_status}")
 
         plex_proc = next((p for p in psutil.process_iter(['name']) if 'plex' in p.info['name'].lower()), None)
         cpu = plex_proc.cpu_percent(interval=1) if plex_proc else 'N/A'
@@ -95,11 +97,13 @@ Audio: {audio_stream.codec if audio_stream else 'N/A'}, Transcode: {transcode_st
         send_discord_message("\n".join(info_lines))
         return True
     except Exception as e:
-        if mode == "debug":
-            print(f"[DEBUG - check_plex_local] Plex connection failed: {e}")
+        print(f"[DEBUG] Plex connection failed: {e}")
         return False
 
+# Run all checks
+
 def run_all_checks():
+    print("[DEBUG] Starting Deluge and network tests")
     results = {
         "plex": check_plex_local(),
         "deluge_active": False,
@@ -113,11 +117,11 @@ def run_all_checks():
         client.connect()
         torrents = client.call("core.get_torrents_status", {}, ["state"])
         results["deluge_active"] = any(t[b"state"] in (b"Downloading", b"Seeding") for t in torrents.values())
-        if mode == "debug":
-            print(f"[DEBUG - check_deluge_activity] Deluge active: {results['deluge_active']}")
-    except:
-        pass
+        print(f"[DEBUG] Deluge active: {results['deluge_active']}")
+    except Exception as e:
+        print(f"[DEBUG] Deluge check failed: {e}")
 
+    deluge_ip, vpn_ip, has_net = None, None, False
     try:
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config", "deluge", "core.conf"))
         with open(path, "r") as f:
@@ -126,48 +130,51 @@ def run_all_checks():
                     match = re.search(r'"outgoing_interface"\s*:\s*"([^"]+)"', line)
                     deluge_ip = match.group(1)
                     break
-            else:
-                deluge_ip = None
-    except:
-        deluge_ip = None
+        print(f"[DEBUG] Deluge config IP: {deluge_ip}")
+    except Exception as e:
+        print(f"[DEBUG] Failed to read Deluge config: {e}")
 
     try:
         result = subprocess.run(["docker", "exec", "vpn", "ip", "addr", "show", "tun0"], capture_output=True, text=True)
         match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
         vpn_ip = match.group(1) if match else None
-    except:
-        vpn_ip = None
+        print(f"[DEBUG] VPN IP: {vpn_ip}")
+    except Exception as e:
+        print(f"[DEBUG] Failed to get VPN IP: {e}")
 
     try:
         result = subprocess.run(["docker", "exec", "deluge", "curl", "-s", "--max-time", "5", "https://www.google.com"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         has_net = result.returncode == 0
-    except:
-        has_net = False
+        print(f"[DEBUG] Deluge internet access: {has_net}")
+    except Exception as e:
+        print(f"[DEBUG] Deluge internet check failed: {e}")
 
     results["deluge_ip_match"] = deluge_ip and vpn_ip and deluge_ip == vpn_ip and has_net
+    print("[DEBUG] Starting Radarr/Sonarr/container checks")
     results["radarr_sonarr"] = check_container("radarr") and check_container("sonarr")
     results["all_containers"] = all(check_container(c) for c in containers)
 
     return results
 
 # Execute and report
+print("[DEBUG] Running full check suite")
 status = run_all_checks()
 failures = [k for k, v in status.items() if not v]
 
-if "plex" not in status or not status["plex"]:
+if not status.get("plex"):
     logging.info("SEV 0: Plex not responding locally.")
     send_discord_message("[SEV 0] Plex access failure detected.")
-elif "deluge_active" not in status or not status["deluge_active"]:
+if not status.get("deluge_active"):
     logging.info("SEV 1: Deluge not active.")
     send_discord_message("[SEV 1] Deluge idle — diagnostic triggered.")
-elif "deluge_ip_match" not in status or not status["deluge_ip_match"]:
+if not status.get("deluge_ip_match"):
     logging.info("SEV 1: Deluge VPN/IP/Net mismatch.")
     send_discord_message("[SEV 1] Deluge IP mismatch or no internet.")
-elif "radarr_sonarr" not in status or not status["radarr_sonarr"]:
+if not status.get("radarr_sonarr"):
     logging.info("SEV 2: Radarr or Sonarr not responding.")
     send_discord_message("[SEV 2] Radarr/Sonarr failure.")
-elif "all_containers" not in status or not status["all_containers"]:
+if not status.get("all_containers"):
     logging.info("SEV 3: One or more containers down.")
     send_discord_message("[SEV 3] Container failure.")
 
@@ -175,5 +182,4 @@ if failures:
     send_discord_message(f"[INFO] Some checks failed: {', '.join(failures)}")
 else:
     duration = round(time.time() - start_time, 2)
-    if mode == "debug":
-        send_discord_message(f"[OK] All services operational. Runtime: {duration}s")
+    send_discord_message(f"[OK] All services operational. Runtime: {duration}s")
