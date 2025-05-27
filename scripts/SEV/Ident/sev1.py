@@ -76,7 +76,7 @@ def run_resolution(code):
     send_discord_message(f"[{code}] Triggering automated resolution routine...")
     if mode == "debug":
         print(f"[DEBUG - sev1.py] Running resolution for {code}")
-    subprocess.run(["python3", "scripts/SEV/Rosultion/sev1_resolution.py", code])
+    subprocess.run(["python3", "../../SEV/Resolution/sev1_resolution.pyy", code])
 
 # D-001 — VPN container check
 send_discord_message("Executing check 1/4: Verifying VPN container status...")
