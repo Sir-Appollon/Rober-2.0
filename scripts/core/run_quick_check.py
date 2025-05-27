@@ -62,15 +62,20 @@ for service in critical_services:
     else:
         plex_msg_lines.append(f"[SERVICE] {service} is NOT running")
 
-# Check VPN and Deluge IP
+# Check VPN and Deluge IPs (public and internal)
 print("[DEBUG - run_quick_check.py - NETWORK - 1] Fetching VPN and Deluge IPs")
 try:
-    vpn_ip = subprocess.check_output(["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]).decode().strip()
-    deluge_ip = subprocess.check_output(["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]).decode().strip()
-    plex_msg_lines.append(f"[VPN IP] {vpn_ip}")
-    plex_msg_lines.append(f"[DELUGE IP] {deluge_ip}")
+    vpn_ip_pub = subprocess.check_output(["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]).decode().strip()
+    deluge_ip_pub = subprocess.check_output(["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]).decode().strip()
+    vpn_ip_int = subprocess.check_output(["docker", "exec", "vpn", "hostname", "-I"]).decode().strip().split()[0]
+    deluge_ip_int = subprocess.check_output(["docker", "exec", "deluge", "hostname", "-I"]).decode().strip().split()[0]
+
+    plex_msg_lines.append(f"[VPN IP] {vpn_ip_pub}")
+    plex_msg_lines.append(f"[DELUGE IP] {deluge_ip_pub}")
+    plex_msg_lines.append(f"[VPN IP] {vpn_ip_int}")
+    plex_msg_lines.append(f"[DELUGE IP] {deluge_ip_int}")
 except Exception as e:
-    plex_msg_lines.append(f"[NETWORK] Failed to retrieve VPN/Deluge IP: {e}")
+    plex_msg_lines.append(f"[NETWORK] Failed to retrieve VPN/Deluge IPs: {e}")
 
 # Internet access and speed test from Deluge container
 print("[DEBUG - run_quick_check.py - NETWORK - 2] Internet access and speed test from Deluge")
@@ -136,7 +141,6 @@ try:
     plex_msg_lines.append(f"[INFO] Transcoding sessions: {transcode_count}")
     plex_msg_lines.append(f"[INFO] Unique clients connected: {len(users_connected)}")
 
-    # Local access check
     response = subprocess.run(["curl", "-s", "--max-time", "5", f"{PLEX_URL}"],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if response.returncode == 0:
@@ -146,7 +150,6 @@ try:
 
     plex_msg_lines.append("[EXTERNAL ACCESS] External check requires external IP/domain")
 
-    # Plex process usage
     for proc in psutil.process_iter(['name', 'cmdline']):
         if 'plex' in ' '.join(proc.info.get('cmdline', [])).lower():
             try:
@@ -157,7 +160,6 @@ try:
                 pass
             break
 
-    # Transcode temp space
     try:
         usage = shutil.disk_usage("/transcode")
         free_gb = usage.free / (1024**3)
@@ -165,7 +167,6 @@ try:
     except:
         plex_msg_lines.append("[DISK] /transcode folder not found")
 
-    # System-wide stats
     print("[DEBUG - run_quick_check.py - SYSTEM - 1] Gathering system stats")
     cpu_total = psutil.cpu_percent(interval=1)
     ram_total = psutil.virtual_memory().percent
