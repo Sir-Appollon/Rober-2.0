@@ -20,7 +20,7 @@ import subprocess
 INTERVAL_SECONDS = 600
 
 # Set mode to "debug" to enable verbose output
-mode = "normal"  # Change to "debug" for debug mode
+mode = "debug"  # Change to "debug" for debug mode
 
 def run_quick_check():
     if mode == "debug":
