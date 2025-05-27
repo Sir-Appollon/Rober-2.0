@@ -6,3 +6,4 @@ psutil
 speedtest-cli
 libtorrent
 discord.py
+deluge-client

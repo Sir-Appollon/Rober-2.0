@@ -12,6 +12,8 @@ import importlib.util
 import logging
 import json
 from datetime import datetime
+from deluge_client import DelugeRPCClient
+
 
 start_time = time.time()
 mode = "normal"
