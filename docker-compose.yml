@@ -283,12 +283,13 @@ services:
       - ${ROOT}/.env
     volumes:
       - ${ROOT}/scripts/core:/app
+      - ${ROOT}/scripts/discord:/app/discord 
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: host
     restart: unless-stopped
-    
+
 networks:
   monitoring:
     driver: bridge

@@ -18,21 +18,32 @@ print("[DEBUG - run_quick_check.py - INIT - 1] Script initiated")
 
 # Setup Discord
 print("[DEBUG - run_quick_check.py - INIT - 2] Initializing Discord connection")
-discord_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py"))
-spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
-discord_notify = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(discord_notify)
-send_discord_message = discord_notify.send_discord_message
 
-def send_msg(msg):
-    global discord_connected
-    try:
-        send_discord_message(msg)
-        discord_connected = True
-        return True
-    except Exception as e:
-        print(f"[DEBUG - run_quick_check.py - Discord - Error] Discord message failed: {e}")
-        return False
+discord_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),          # dans Docker
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),    # hors Docker
+]
+
+discord_connected = False
+send_discord_message = None
+
+for discord_path in discord_paths:
+    if os.path.isfile(discord_path):
+        print(f"[DEBUG - run_quick_check.py - DISCORD - Found] Using: {discord_path}")
+        try:
+            spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
+            discord_notify = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(discord_notify)
+            send_discord_message = discord_notify.send_discord_message
+            break
+        except Exception as e:
+            print(f"[DEBUG - run_quick_check.py - DISCORD - Error] Failed to import module: {e}")
+    else:
+        print(f"[DEBUG - run_quick_check.py - DISCORD - Missing] File not found: {discord_path}")
+
+if not send_discord_message:
+    print("[DEBUG - run_quick_check.py - DISCORD - FAIL] Could not load Discord notifier module.")
+
 
 # Setup logging
 logging.basicConfig(
