@@ -23,18 +23,18 @@ import time
 mode = "debug"
 
 # Load .env
-print("[DEBUG - run_quick_check.py] Attempting to load .env")
+print("[DEBUG - discord_notify.py] Attempting to load .env")
 env_loaded = False
 for p in [
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 ]:
     if load_dotenv(p):
-        print(f"[DEBUG - discord_notify.py.py] Loaded environment file: {p}")
+        print(f"[DEBUG - discord_notify.py] Loaded environment file: {p}")
         env_loaded = True
         break
 if not env_loaded:
-    print("[DEBUG - discord_notify.py.py] No .env file found.")
+    print("[DEBUG - discord_notify.py] No .env file found.")
 else:
     print("[DEBUG - discord_notify.py] Environment variables loaded successfully")
 

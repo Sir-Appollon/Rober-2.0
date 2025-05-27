@@ -23,7 +23,7 @@ mode = "normal"
 
 # Load environment variables
 if not load_dotenv(dotenv_path="/app/.env"):
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path="../../.env")
 
 webhook = os.getenv("DISCORD_WEBHOOK")
 
