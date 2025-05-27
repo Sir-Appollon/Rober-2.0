@@ -34,6 +34,7 @@ mode = "normal"
 
 # Fix path to import notifier
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+from discord.discord_notify import send_discord_message
 
 
 # Logging setup
