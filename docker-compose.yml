@@ -250,32 +250,19 @@ services:
   #   restart: unless-stopped
   #   command: [ "sh", "-c", "while true; do python Health.py; sleep 300; done" ]
 
-  health:
-    build:
-      context: ${ROOT}/scripts
-      dockerfile: Dockerfile
-    volumes:
-      - ${ROOT}/scripts:/app
-      - ${ROOT}/.env:/app/.env
-      - /mnt/data:/mnt/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    network_mode: host
-    command: ["sh", "-c", "python3 /app/Health.py"]
+  # health:
+  #   build:
+  #     context: ${ROOT}/scripts
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ${ROOT}/scripts:/app
+  #     - ${ROOT}/.env:/app/.env
+  #     - /mnt/data:/mnt/data
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   network_mode: host
+  #   command: ["sh", "-c", "python3 /app/Health.py"]
 
-  listener:
-    build:
-      context: ${ROOT}/scripts
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
-    volumes:
-      - ${ROOT}/scripts:/app
-      - /mnt/data:/mnt/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: ["python3", "/app/health_listener.py"]
-    network_mode: host
-
-  # monitor:
+  # listener:
   #   build:
   #     context: ${ROOT}/scripts
   #     dockerfile: Dockerfile
@@ -285,9 +272,22 @@ services:
   #     - ${ROOT}/scripts:/app
   #     - /mnt/data:/mnt/data
   #     - /var/run/docker.sock:/var/run/docker.sock
-  #   command: ["python3", "/app/monitor_loop.py"]
+  #   command: ["python3", "/app/health_listener.py"]
   #   network_mode: host
-  #   restart: unless-stopped
+
+    monitor:
+      build:
+        context: ${ROOT}/scripts
+        dockerfile: Dockerfile
+      env_file:
+        - ${ROOT}/.env
+      volumes:
+        - ${ROOT}/scripts/core:/app
+        - /mnt/data:/mnt/data
+        - /var/run/docker.sock:/var/run/docker.sock
+      command: ["python3", "/app/monitor_loop.py"]
+      network_mode: host
+      restart: unless-stopped
 
 networks:
   monitoring:
