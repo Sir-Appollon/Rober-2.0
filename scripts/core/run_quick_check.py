@@ -9,6 +9,7 @@ import socket
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
 import importlib.util
+import logging
 
 start_time = time.time()
 mode = "debug"
@@ -32,6 +33,13 @@ def send_msg(msg):
     except Exception as e:
         print(f"[DEBUG - run_quick_check.py - Discord - Error] Discord message failed: {e}")
         return False
+
+# Setup logging
+logging.basicConfig(
+    filename="/mnt/data/entry_log_quick_check.log",
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
 
 # Load .env
 print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load .env")
@@ -190,13 +198,57 @@ try:
 
     for line in plex_msg_lines:
         print(f"[DEBUG - run_quick_check.py - PLEX - INFO] {line}")
-    send_msg("\n".join(plex_msg_lines))
+    send_msg("Quick data acquisition : done")
 
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
-    send_msg(f"[CRITICAL ERROR] Plex access failed: {e}")
+    send_msg("Quick data acquisition : done with error")
 
 if discord_connected:
     print("[DEBUG - run_quick_check.py - DISCORD - SUCCESS] Discord message sent successfully")
 else:
     print("[DEBUG - run_quick_check.py - DISCORD - FAIL] No Discord message sent")
+
+# Save all extracted values as CSV-like line
+try:
+    log_values = []
+
+    log_values.append(str(int(env_loaded)))
+    for service in critical_services:
+        status = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", service], capture_output=True, text=True)
+        log_values.append(str(int(status.stdout.strip() == "true")))
+
+    log_values.append(str(int('vpn_ip_pub' in locals())))
+    log_values.append(str(int('deluge_ip_pub' in locals())))
+    log_values.append(str(int('vpn_ip_int' in locals())))
+    log_values.append(str(int('deluge_ip_int' in locals())))
+
+    log_values.append(str(int(internet_check.returncode == 0 if 'internet_check' in locals() else 0)))
+
+    log_values.append(f"{round(download_speed,2) if 'download_speed' in locals() else 0.0}")
+    log_values.append(f"{round(upload_speed,2) if 'upload_speed' in locals() else 0.0}")
+
+    log_values.append(str(session_count if 'session_count' in locals() else 0))
+    log_values.append(str(len(users_connected) if 'users_connected' in locals() else 0))
+    log_values.append(str(transcode_count if 'transcode_count' in locals() else 0))
+
+    log_values.append(f"{round(cpu,2) if 'cpu' in locals() else 0.0}")
+    log_values.append(f"{round(mem,2) if 'mem' in locals() else 0.0}")
+    log_values.append(f"{round(free_gb,2) if 'free_gb' in locals() else 0.0}")
+
+    log_values.append(f"{round(cpu_total,2)}")
+    log_values.append(f"{round(ram_total,2)}")
+    log_values.append(f"{round(net_io.bytes_sent / (1024**2), 2)}")
+    log_values.append(f"{round(net_io.bytes_recv / (1024**2), 2)}")
+    log_values.append(f"{round(disk_io.read_bytes / (1024**2), 2)}")
+    log_values.append(f"{round(disk_io.write_bytes / (1024**2), 2)}")
+    log_values.append(f"{round(cpu_temp,2) if isinstance(cpu_temp, float) else 0.0}")
+    log_values.append(f"{round(duration, 2)}")
+    log_values.append(str(int(discord_connected)))
+
+    with open("/mnt/data/entry_log_quick_check.log", "a") as f:
+        f.write(",".join(log_values) + "\\n")
+
+except Exception as e:
+    logging.error(f"[LOGGING] Failed to write numeric log data: {e}")
+
