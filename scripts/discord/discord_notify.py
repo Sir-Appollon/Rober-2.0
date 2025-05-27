@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 import time
 
 # Mode: "normal" or "debug"
-mode = "normal"
+mode = "debug"
 
 # Load environment variables from standard paths
 if not load_dotenv(dotenv_path="/app/.env"):
