@@ -275,20 +275,20 @@ services:
   #   command: ["python3", "/app/health_listener.py"]
   #   network_mode: host
 
-    monitor:
-      build:
-        context: ${ROOT}/scripts
-        dockerfile: Dockerfile
-      env_file:
-        - ${ROOT}/.env
-      volumes:
-        - ${ROOT}/scripts/core:/app
-        - /mnt/data:/mnt/data
-        - /var/run/docker.sock:/var/run/docker.sock
-      command: ["python3", "/app/monitor_loop.py"]
-      network_mode: host
-      restart: unless-stopped
-
+  monitor:
+    build:
+      context: ${ROOT}/scripts
+      dockerfile: Dockerfile
+    env_file:
+      - ${ROOT}/.env
+    volumes:
+      - ${ROOT}/scripts/core:/app
+      - /mnt/data:/mnt/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python3", "/app/monitor_loop.py"]
+    network_mode: host
+    restart: unless-stopped
+    
 networks:
   monitoring:
     driver: bridge
