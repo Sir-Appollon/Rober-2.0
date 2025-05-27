@@ -282,8 +282,7 @@ services:
     env_file:
       - ${ROOT}/.env
     volumes:
-      - ${ROOT}/scripts/core:/app
-      - ${ROOT}/scripts/discord:/app/discord 
+      - ${ROOT}/scripts:/app
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/monitor_loop.py"]
