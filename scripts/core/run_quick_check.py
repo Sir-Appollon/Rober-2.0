@@ -336,7 +336,10 @@ try:
         },
         "performance": {
             "runtime_seconds": round(duration, 2)
-        }
+        },
+        "deluge": deluge_stats,
+        "storage": disk_status
+
     }
 
     append_json_log(data_entry)
