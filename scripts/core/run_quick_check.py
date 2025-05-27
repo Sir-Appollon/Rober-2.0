@@ -308,16 +308,20 @@ try:
     deluge_client.connect()
     torrents = deluge_client.call("core.get_torrents_status", {}, ["state", "download_payload_rate", "upload_payload_rate"])
     for t in torrents.values():
-        if t["state"] == "Downloading":
+        state = t.get("state")
+        if state == "Downloading":
             deluge_stats["num_downloading"] += 1
-        elif t["state"] == "Seeding":
+        elif state == "Seeding":
             deluge_stats["num_seeding"] += 1
+
         deluge_stats["download_rate"] += t.get("download_payload_rate", 0.0)
         deluge_stats["upload_rate"] += t.get("upload_payload_rate", 0.0)
-    deluge_stats["download_rate"] /= 1024
+
+    deluge_stats["download_rate"] /= 1024  # KB/s
     deluge_stats["upload_rate"] /= 1024
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
+
 
 disk_status = {}
 for part in psutil.disk_partitions():
