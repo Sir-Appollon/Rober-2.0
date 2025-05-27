@@ -33,7 +33,7 @@ from pathlib import Path
 mode = "normal"
 
 # Fix path to import notifier
-sys.path.append("/app/scripts")
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 from scripts.discord.discord_notify import send_discord_message
 
 # Logging setup
