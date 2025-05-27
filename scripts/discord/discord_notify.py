@@ -22,9 +22,21 @@ import time
 # Mode: "normal" or "debug"
 mode = "debug"
 
-# Load environment variables from standard paths
-if not load_dotenv(dotenv_path="/app/.env"):
-    load_dotenv(dotenv_path="../../.env")
+# Load .env
+print("[DEBUG - discord_notify.py.py] Attempting to load .env")
+env_loaded = False
+for p in [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+]:
+    if load_dotenv(p):
+        print(f"[DEBUG - discord_notify.py.py] Loaded environment file: {p}")
+        env_loaded = True
+        break
+if not env_loaded:
+    print("[DEBUG - discord_notify.py.py] No .env file found.")
+else:
+    print("[DEBUG - discord_notify.py] Environment variables loaded successfully")
 
 # Retrieve webhook URL
 discord_webhook = os.getenv("DISCORD_WEBHOOK")
