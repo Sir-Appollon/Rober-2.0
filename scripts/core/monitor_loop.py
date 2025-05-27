@@ -27,10 +27,11 @@ def run_quick_check():
         print("[DEBUG - monitor_loop.py] Executing run_quick_check.py via subprocess")
 
     result = subprocess.run(
-        ["python3", "/app/scripts/core/run_quick_check.py"],
-        capture_output=True,
-        text=True
-    )
+    ["python3", "/app/run_quick_check.py"],  # ← Chemin corrigé
+    capture_output=True,
+    text=True
+)
+
 
     if mode == "debug":
         print("[DEBUG - monitor_loop.py] Subprocess output:")
