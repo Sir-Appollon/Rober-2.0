@@ -54,6 +54,25 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
+def append_json_log(entry):
+    LOG_FILE = "/mnt/data/system_monitor_log.json"
+    entry["timestamp"] = datetime.now().isoformat()
+
+    if not os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "w") as f:
+            json.dump([entry], f, indent=2)
+    else:
+        with open(LOG_FILE, "r+") as f:
+            try:
+                logs = json.load(f)
+            except json.JSONDecodeError:
+                logs = []
+            logs.append(entry)
+            f.seek(0)
+            json.dump(logs, f, indent=2)
+            f.truncate()
+
+
 # # Load .env
 # print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load .env")
 # env_loaded = False
