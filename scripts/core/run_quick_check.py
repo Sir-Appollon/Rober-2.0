@@ -14,7 +14,7 @@ import json
 from datetime import datetime
 
 start_time = time.time()
-mode = "debug"
+mode = "normal"
 discord_connected = False
 print("[DEBUG - run_quick_check.py - INIT - 1] Script initiated")
 

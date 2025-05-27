@@ -15,12 +15,37 @@ Triggered Files/Services:
 
 import time
 import subprocess
+import os
+import importlib.util
 
 # Interval between checks in seconds (10 minutes)
 INTERVAL_SECONDS = 600
 
 # Set mode to "debug" to enable verbose output
-mode = "debug"  # Change to "debug" for debug mode
+mode = "nomral"  # Change to "debug" for debug mode
+
+# Discord notifier setup
+discord_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
+]
+
+send_discord_message = None
+
+for discord_path in discord_paths:
+    if os.path.isfile(discord_path):
+        try:
+            spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
+            discord_notify = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(discord_notify)
+            send_discord_message = discord_notify.send_discord_message
+            break
+        except Exception:
+            pass
+
+if send_discord_message:
+    send_discord_message("[INFO] monitor_loop.py started")
+
 
 def run_quick_check():
     if mode == "debug":
