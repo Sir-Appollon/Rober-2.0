@@ -24,7 +24,7 @@ mode = "normal"
 
 # Load environment variables from standard paths
 if not load_dotenv(dotenv_path="/app/.env"):
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path="../../.env")
 
 # Retrieve webhook URL
 discord_webhook = os.getenv("DISCORD_WEBHOOK")
