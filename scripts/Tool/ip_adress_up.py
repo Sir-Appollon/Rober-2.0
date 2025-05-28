@@ -4,7 +4,7 @@ import subprocess
 import time
 import re
 
-config_path = "../config/deluge/core.conf"
+config_path = "../../config/deluge/core.conf"
 
 def stop_deluge():
     subprocess.run(["docker", "stop", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

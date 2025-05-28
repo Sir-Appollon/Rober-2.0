@@ -303,9 +303,13 @@ deluge_stats = {
     "download_rate": 0.0,
     "upload_rate": 0.0
 }
+deluge_interface_ips = []
+
 try:
     deluge_client = DelugeRPCClient("127.0.0.1", 58846, "localclient", os.getenv("DELUGE_PASSWORD"))
     deluge_client.connect()
+
+    # Get torrent stats
     torrents = deluge_client.call("core.get_torrents_status", {}, ["state", "download_payload_rate", "upload_payload_rate"])
     for t in torrents.values():
         state = t.get("state")
@@ -319,8 +323,60 @@ try:
 
     deluge_stats["download_rate"] /= 1024  # KB/s
     deluge_stats["upload_rate"] /= 1024
+
+    # Get network interfaces used by Deluge
+    core_config = deluge_client.call("core.get_config")
+    listen_interface = core_config.get("listen_interface", "")
+    outgoing_interface = core_config.get("outgoing_interface", "")
+
+    if listen_interface:
+        try:
+            ip = socket.gethostbyname(listen_interface)
+            deluge_interface_ips.append(ip)
+        except Exception as e:
+            print(f"[DEBUG - DELUGE - IP RESOLVE - listen_interface] {e}")
+
+    if outgoing_interface and outgoing_interface != listen_interface:
+        try:
+            ip = socket.gethostbyname(outgoing_interface)
+            deluge_interface_ips.append(ip)
+        except Exception as e:
+            print(f"[DEBUG - DELUGE - IP RESOLVE - outgoing_interface] {e}")
+
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
+
+def get_interface_ip(container_name, interface_name):
+    try:
+        result = subprocess.check_output([
+            "docker", "exec", container_name,
+            "sh", "-c", f"ip -4 addr show {interface_name} | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'"
+        ])
+        return result.decode().strip()
+    except Exception as e:
+        print(f"[DEBUG - VPN - Interface {interface_name} error] {e}")
+        return None
+
+vpn_interface_ip = None
+vpn_ip_pub = None
+
+# Interfaces VPN potentielles à tester
+vpn_interfaces = ["tun0", "wg0", "eth0"]
+
+# Test interfaces pour trouver une IP réelle
+for iface in vpn_interfaces:
+    ip = get_interface_ip("vpn", iface)
+    if ip:
+        vpn_interface_ip = ip
+        break
+
+# Récupère l'IP publique depuis l'intérieur du conteneur VPN
+try:
+    vpn_ip_pub = subprocess.check_output([
+        "docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"
+    ]).decode().strip()
+except Exception as e:
+    print(f"[DEBUG - VPN - Public IP Error] {e}")
 
 
 disk_status = {}
@@ -340,12 +396,16 @@ for part in psutil.disk_partitions():
 try:
     data_entry = {
         "docker_services": {
-            service: subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", service], capture_output=True, text=True).stdout.strip() == "true"
+            service: subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", service],
+                capture_output=True, text=True
+            ).stdout.strip() == "true"
             for service in critical_services
         },
         "network": {
-            "vpn_ip": [vpn_ip_pub, vpn_ip_int] if 'vpn_ip_pub' in locals() and 'vpn_ip_int' in locals() else [],
-            "deluge_ip": [deluge_ip_pub, deluge_ip_int] if 'deluge_ip_pub' in locals() and 'deluge_ip_int' in locals() else [],
+            "vpn_ip": [vpn_ip_pub, vpn_interface_ip] if 'vpn_ip_pub' in locals() and vpn_interface_ip else [],
+            "vpn_ip": [vpn_ip_pub, vpn_interface_ip] if vpn_ip_pub and vpn_interface_ip else [],
+            "deluge_ip": deluge_interface_ips,
             "internet_access": internet_check.returncode == 0 if 'internet_check' in locals() else False,
             "speedtest": {
                 "download_mbps": round(download_speed, 2) if 'download_speed' in locals() else 0.0,
@@ -360,7 +420,7 @@ try:
             "cpu_usage": round(cpu, 2) if 'cpu' in locals() else 0.0,
             "ram_usage": round(mem, 2) if 'mem' in locals() else 0.0,
             "transcode_folder_found": 'free_gb' in locals(),
-            "local_access": True,  # basé sur ton curl
+            "local_access": True,
             "external_access": "unknown"
         },
         "system": {
@@ -381,7 +441,6 @@ try:
         },
         "deluge": deluge_stats,
         "storage": disk_status
-
     }
 
     append_json_log(data_entry)
