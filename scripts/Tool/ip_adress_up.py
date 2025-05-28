@@ -51,3 +51,33 @@ if __name__ == "__main__":
     update_deluge_ip(ip)
     print(f"Updated Deluge config with VPN IP {ip}. Starting Deluge...")
     start_deluge()
+
+# def get_deluge_ip():
+#     """
+#     Récupère l'adresse IP de l'interface principale dans le conteneur Docker Deluge.
+#     Tente d'extraire l'adresse associée à `tun0` si elle existe, sinon celle de l'hôte.
+#     """
+#     try:
+#         # Essai de récupération via l'interface `tun0` si présente (VPN-bound Deluge)
+#         result = subprocess.run(
+#             ["docker", "exec", "deluge", "ip", "addr", "show", "tun0"],
+#             capture_output=True, text=True
+#         )
+#         match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+#         if match:
+#             return match.group(1)
+#     except Exception as e:
+#         print(f"[DEBUG - get_deluge_ip - tun0] {e}")
+
+#     try:
+#         # Fallback vers IP classique (interne du conteneur)
+#         result = subprocess.run(
+#             ["docker", "exec", "deluge", "hostname", "-i"],
+#             capture_output=True, text=True
+#         )
+#         ip = result.stdout.strip().split()[0]
+#         return ip
+#     except Exception as e:
+#         raise RuntimeError(f"[DEBUG - get_deluge_ip - fallback] Could not detect IP inside deluge container: {e}")
+# deluge_ip = get_deluge_ip()
+# print(f"L'IP de Deluge est : {deluge_ip}")
