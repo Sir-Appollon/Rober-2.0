@@ -13,6 +13,8 @@ import logging
 import json
 from datetime import datetime
 from deluge_client import DelugeRPCClient
+import re
+
 
 
 start_time = time.time()
