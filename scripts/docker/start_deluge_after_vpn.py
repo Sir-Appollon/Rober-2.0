@@ -96,7 +96,7 @@ def update_deluge_ip(new_ip):
 
 
 if __name__ == "__main__":
-    wait_for_container("vpn")
+    print("[INFO] Conteneur VPN actif (le script est exécuté depuis celui-ci)")
     vpn_ip = wait_for_vpn_with_retry(max_attempts=5, delay=15)
     stop_deluge()
     time.sleep(2)
