@@ -25,7 +25,7 @@ import json
 
 
 # Mode: "normal" or "debug"
-mode = "normal"
+mode = "debug"
 
 # Load environment variables
 if not load_dotenv("/app/.env"):
