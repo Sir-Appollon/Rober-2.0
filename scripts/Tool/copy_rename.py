@@ -3,7 +3,7 @@ import shutil
 
 # Dossiers source et destination
 source_dir = "/mnt/media/tv/Death's Game/Season 1"
-dest_dir = "/mnt/media/extra/downloads/complete/Deaths.Game.S01.1080p.AMZN.WEB-DL.DDP2.0.H.264-MARK"
+dest_dir = "/mnt/media/extra/downloads/incomplete/Deaths.Game.S01.1080p.AMZN.WEB-DL.DDP2.0.H.264-MARK"
 
 # Liste des nouveaux noms de fichiers (tu les vois ici clairement)
 new_files = {
