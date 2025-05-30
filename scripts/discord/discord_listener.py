@@ -58,7 +58,7 @@ async def run_health(ctx):
         if mode == "debug":
             print("[DEBUG - health_listener.py] Launching Health.py via subprocess.")
 
-        subprocess.run(["python3", "/app/scripts/health/Health.py"], timeout=60)
+        subprocess.run(["python3", "/app/health/Health.py"], timeout=60)
 
         await ctx.send("Health check executed.")
 
