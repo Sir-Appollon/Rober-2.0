@@ -350,7 +350,11 @@ try:
     deluge_client.connect()
     print("[DEBUG - DELUGE - RPC connection successful]")
 
-    torrents = deluge_client.call("core.get_torrents_status", {}, ["name", "state", "download_payload_rate", "upload_payload_rate"])
+    torrents = deluge_client.call(
+        "core.get_torrents_status",
+        {},
+        ["name", "state", "download_payload_rate", "upload_payload_rate"]
+    )
     print(f"[DEBUG - DELUGE - Torrent count: {len(torrents)}]")
 
     for torrent_id, t in torrents.items():
