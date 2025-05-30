@@ -6,19 +6,7 @@ import re
 import json
 import os
 
-config_path = "../../config/deluge/core.conf"
-
-
-def wait_for_container(container_name, timeout=60):
-    print(f"[INFO] Attente du démarrage du conteneur '{container_name}'...")
-    for _ in range(timeout):
-        result = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", container_name],
-                                capture_output=True, text=True)
-        if result.stdout.strip() == "true":
-            print(f"[INFO] {container_name} est opérationnel.")
-            return True
-        time.sleep(1)
-    raise TimeoutError(f"[ERROR] Timeout : {container_name} ne s'est pas lancé à temps.")
+config_path = "/config/deluge/core.conf"  # Chemin correct depuis le conteneur configurateur
 
 
 def system_has_internet():
@@ -36,7 +24,7 @@ def system_has_internet():
 def vpn_has_internet():
     try:
         result = subprocess.run(
-            ["docker", "exec", "vpn", "curl", "-s", "--max-time", "5", "https://api.ipify.org"],
+            ["curl", "-s", "--max-time", "5", "https://api.ipify.org"],
             capture_output=True, text=True
         )
         ip = result.stdout.strip()
@@ -61,25 +49,7 @@ def wait_for_vpn_with_retry(max_attempts=5, delay=15):
             print("[VPN] L'hôte n'a pas accès à Internet non plus. Nouvelle tentative après délai...")
         time.sleep(delay)
 
-    # Échec après tentatives → redémarrage du VPN
-    print("[VPN] Échec après plusieurs tentatives. Redémarrage du conteneur VPN...")
-    subprocess.run(["docker", "restart", "vpn"])
-    time.sleep(10)
-
-    vpn_ip = vpn_has_internet()
-    if not vpn_ip:
-        raise RuntimeError("[ERROR] Le VPN n'a toujours pas d'accès Internet après redémarrage.")
-    return vpn_ip
-
-
-def stop_deluge():
-    print("[INFO] Arrêt du conteneur Deluge...")
-    subprocess.run(["docker", "stop", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def start_deluge():
-    print("[INFO] Redémarrage du conteneur Deluge...")
-    subprocess.run(["docker", "start", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    raise RuntimeError("[ERROR] Le VPN n'a pas d'accès Internet après plusieurs essais.")
 
 
 def update_deluge_ip(new_ip):
@@ -87,19 +57,22 @@ def update_deluge_ip(new_ip):
     with open(config_path, 'r') as f:
         config = json.load(f)
 
+    existing_ip = config.get("listen_interface", "")
+    if existing_ip == new_ip:
+        print("[INFO] IP déjà présente, aucune modification nécessaire.")
+        return
+
     config["listen_interface"] = new_ip
     config["outgoing_interface"] = new_ip
 
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
+
     print("[INFO] Fichier core.conf mis à jour avec succès.")
 
 
 if __name__ == "__main__":
-    print("[INFO] Conteneur VPN actif (le script est exécuté depuis celui-ci)")
+    print("[INFO] Script lancé depuis le conteneur VPN.")
     vpn_ip = wait_for_vpn_with_retry(max_attempts=5, delay=15)
-    stop_deluge()
-    time.sleep(2)
     update_deluge_ip(vpn_ip)
-    start_deluge()
-    print("[SUCCESS] Deluge redémarré avec la bonne IP VPN.")
+    print("[SUCCESS] Deluge est prêt à être relancé avec l'IP VPN.")

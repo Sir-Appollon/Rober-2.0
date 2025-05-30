@@ -27,13 +27,21 @@ services:
     volumes:
       - ${ROOT}/config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
-      - ${ROOT}/scripts/docker:/scripts
-    command: >
-     bash -c "
-      sleep 10 &&
-      python3 /scripts/start_deluge_after_vpn.py
-     "
     restart: unless-stopped
+
+  deluge_vpn_configurator:
+    image: python:3.10-slim
+    container_name: deluge_vpn_configurator
+    volumes:
+      - ./scripts/docker:/scripts
+      - ${ROOT}/config/deluge:/config/deluge
+    depends_on:
+      - vpn
+    network_mode: "service:vpn"
+    entrypoint: ["python3", "/scripts/start_deluge_after_vpn.py"]
+    restart: always
+    depends_on:
+      - vpn
 
   deluge:
     image: linuxserver/deluge:latest
