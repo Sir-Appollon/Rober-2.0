@@ -344,6 +344,7 @@ deluge_stats = {
     "download_rate": 0.0,
     "upload_rate": 0.0
 }
+
 try:
     print("[DEBUG - DELUGE - Connecting to RPC...]")
     deluge_client = DelugeRPCClient("127.0.0.1", 58846, "localclient", os.getenv("DELUGE_PASSWORD"))
@@ -358,20 +359,30 @@ try:
     print(f"[DEBUG - DELUGE - Torrent count: {len(torrents)}]")
 
     for torrent_id, t in torrents.items():
-        print(f"[DEBUG - DELUGE - Torrent] ID: {torrent_id} | Name: {t.get('name')} | State: {t.get('state')} | DL: {t.get('download_payload_rate')} | UL: {t.get('upload_payload_rate')}")
+        name = t.get("name", b"").decode(errors="ignore") if isinstance(t.get("name"), bytes) else t.get("name")
+        state = t.get("state", b"").decode(errors="ignore") if isinstance(t.get("state"), bytes) else t.get("state")
+        dl_rate = t.get("download_payload_rate", 0)
+        ul_rate = t.get("upload_payload_rate", 0)
 
-        state = t.get("state")
+        if isinstance(dl_rate, bytes):
+            dl_rate = int.from_bytes(dl_rate, "little")
+        if isinstance(ul_rate, bytes):
+            ul_rate = int.from_bytes(ul_rate, "little")
+
+        print(f"[DEBUG - DELUGE - Torrent] ID: {torrent_id} | Name: {name} | State: {state} | DL: {dl_rate} | UL: {ul_rate}")
+
         if state == "Downloading":
             deluge_stats["num_downloading"] += 1
         elif state == "Seeding":
             deluge_stats["num_seeding"] += 1
 
-        deluge_stats["download_rate"] += t.get("download_payload_rate", 0.0)
-        deluge_stats["upload_rate"] += t.get("upload_payload_rate", 0.0)
+        deluge_stats["download_rate"] += dl_rate
+        deluge_stats["upload_rate"] += ul_rate
 
     deluge_stats["download_rate"] /= 1024  # KB/s
     deluge_stats["upload_rate"] /= 1024
-    print(f"[DEBUG - DELUGE - Stats] DL: {deluge_stats['download_rate']} KB/s | UL: {deluge_stats['upload_rate']} KB/s")
+    print(f"[DEBUG - DELUGE - Stats] DL: {deluge_stats['download_rate']:.2f} KB/s | UL: {deluge_stats['upload_rate']:.2f} KB/s")
+
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
 
