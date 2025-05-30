@@ -27,7 +27,7 @@ mode = "normal"
 
 # Load environment variables
 if not load_dotenv("/app/.env"):
-    load_dotenv("../.env")
+    load_dotenv("../../.env")
 
 # Get bot token and target channel
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -64,6 +64,45 @@ async def run_health(ctx):
         await ctx.send(f"Execution failed: {e}")
         if mode == "debug":
             print(f"[DEBUG - health_listener.py] Exception: {e}")
+
+
+@bot.command(name="lastdata")
+async def get_last_data(ctx):
+    if ctx.channel.id != CHANNEL_ID:
+        if mode == "debug":
+            print(f"[DEBUG - lastdata] Command from unauthorized channel: {ctx.channel.id}")
+        return
+
+    log_file = "/mnt/data/system_monitor_log.json"
+
+    try:
+        with open(log_file, "r") as f:
+            logs = json.load(f)
+            last_entry = logs[-1]
+            timestamp = last_entry.get("timestamp", "N/A")
+            cpu = last_entry["system"]["cpu_total"]
+            ram = last_entry["system"]["ram_total"]
+            dl = last_entry["network"]["speedtest"]["download_mbps"]
+            ul = last_entry["network"]["speedtest"]["upload_mbps"]
+            plex_sessions = last_entry["plex"]["active_sessions"]
+            deluge_dl = last_entry["deluge"]["download_rate"]
+            deluge_ul = last_entry["deluge"]["upload_rate"]
+
+            summary = (
+                f"**Dernière entrée du système** ({timestamp})\n"
+                f"🖥️ CPU: {cpu}% | 🧠 RAM: {ram}%\n"
+                f"🌐 DL: {dl} Mbps | UL: {ul} Mbps\n"
+                f"🎞️ Plex sessions: {plex_sessions}\n"
+                f"🐌 Deluge: DL: {deluge_dl:.2f} KB/s | UL: {deluge_ul:.2f} KB/s"
+            )
+
+            await ctx.send(summary)
+
+    except Exception as e:
+        await ctx.send(f"Erreur lecture log: {e}")
+        if mode == "debug":
+            print(f"[DEBUG - lastdata] Exception: {e}")
+
 
 # Start bot loop
 bot.run(TOKEN)
