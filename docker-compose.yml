@@ -268,7 +268,7 @@ services:
   
   health-bot:
     build:
-      context: .
+      context: ${ROOT}/scripts
       dockerfile: Dockerfile
     container_name: health-bot
     env_file:
