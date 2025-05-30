@@ -20,7 +20,6 @@ Triggered Files/Services:
 - Sends message using scripts/discord/discord_notify.py
 """
 
-import os
 import subprocess
 import logging
 from dotenv import load_dotenv
@@ -30,12 +29,27 @@ import psutil
 import speedtest
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+# Détection dynamique de la racine du projet
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# On monte jusqu'à la racine du projet (adapté à ton arborescence : /app/health/ → /app)
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+
+# Ajoute la racine du projet au sys.path pour les imports
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Debug facultatif
+print("[DEBUG] sys.path:", sys.path)
+
+# Import
 try:
-    from scripts.discord.discord_notify import send_discord_message
+    from discord.discord_notify import send_discord_message
     print("[DEBUG] Import send_discord_message: OK")
 except Exception as e:
     print(f"[DEBUG] Import send_discord_message: FAILED → {e}")
+
 
 
 
