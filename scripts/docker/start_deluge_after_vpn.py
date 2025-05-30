@@ -7,19 +7,23 @@ import os
 
 config_path = "/config/core.conf"
 
-def vpn_has_internet():
+def get_internal_vpn_ip():
     try:
         result = subprocess.run(
-            ["curl", "-s", "--max-time", "5", "https://api.ipify.org"],
+            ["ip", "addr", "show", "tun0"],  # ou "wg0" ou autre selon ton VPN
             capture_output=True, text=True
         )
-        ip = result.stdout.strip()
-        if re.match(r"\d+\.\d+\.\d+\.\d+", ip):
-            print(f"[VPN] OK - IP publique VPN : {ip}")
+        match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+        if match:
+            ip = match.group(1)
+            print(f"[VPN] OK - IP locale VPN : {ip}")
             return ip
+        else:
+            raise RuntimeError("IP VPN non trouvée sur tun0")
     except Exception as e:
-        print(f"[VPN] Erreur de connexion : {e}")
+        print(f"[VPN] Erreur de détection IP locale VPN : {e}")
     return None
+
 
 def wait_for_vpn_with_retry(max_attempts=5, delay=15):
     for attempt in range(1, max_attempts + 1):
@@ -58,6 +62,6 @@ def update_config_ip(ip):
 
 if __name__ == "__main__":
     print("[INFO] Script de configuration Deluge lancé.")
-    vpn_ip = wait_for_vpn_with_retry()
+    vpn_ip = get_internal_vpn_ip()
     update_config_ip(vpn_ip)
     print("[SUCCESS] Script terminé.")
