@@ -276,6 +276,7 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/health:/app/scripts/health
       - ${ROOT}/scripts/discord:/app/scripts/discord
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
     network_mode: host
