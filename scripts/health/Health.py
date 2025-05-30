@@ -31,6 +31,11 @@ import speedtest
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+try:
+    from scripts.discord.discord_notify import send_discord_message
+    print("[DEBUG] Import send_discord_message: OK")
+except Exception as e:
+    print(f"[DEBUG] Import send_discord_message: FAILED → {e}")
 
 
 
