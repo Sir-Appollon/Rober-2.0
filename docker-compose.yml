@@ -39,10 +39,10 @@ services:
       - TZ=${TZ}
     volumes:
       - ${ROOT}/config/deluge:/config
-      - ${ROOT}/scripts/docker:/scripts
+   #   - ${ROOT}/scripts/docker:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-    entrypoint: ["/scripts/deluge-entrypoint.sh"]
+  #  entrypoint: ["/scripts/deluge-entrypoint.sh"]
     depends_on:
       - vpn
 
