@@ -28,7 +28,8 @@ from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 import psutil
 import speedtest
-from scripts.discord.discord_notify import send_discord_message
+from discord.discord_notify import send_discord_message
+
 
 # Mode: "normal" or "debug"
 mode = "normal"
