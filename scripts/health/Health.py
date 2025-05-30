@@ -28,7 +28,10 @@ from deluge_client import DelugeRPCClient
 from plexapi.server import PlexServer
 import psutil
 import speedtest
-from discord.discord_notify import send_discord_message
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 
 
 # Mode: "normal" or "debug"
