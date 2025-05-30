@@ -3,81 +3,80 @@
 import subprocess
 import time
 import re
+import os
 
+# Chemin vers le core.conf depuis le host
 config_path = "../../config/deluge/core.conf"
 
 def stop_deluge():
+    print("[INFO] Arrêt de Deluge...")
     subprocess.run(["docker", "stop", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def start_deluge():
+    print("[INFO] Redémarrage de Deluge...")
     subprocess.run(["docker", "start", "deluge"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def is_deluge_running():
     result = subprocess.run(["docker", "ps", "-q", "-f", "name=deluge"], capture_output=True, text=True)
     return result.stdout.strip() != ""
 
-def get_vpn_ip():
-    result = subprocess.run(
-        ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
-        capture_output=True, text=True
-    )
-    match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
-    if match:
-        return match.group(1)
-    else:
-        raise RuntimeError("Could not detect VPN IP on tun0 inside container")
+def get_vpn_internal_ip():
+    print("[INFO] Récupération de l'IP interne du VPN (tun0)...")
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
+            capture_output=True, text=True
+        )
+        match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+        if match:
+            ip = match.group(1)
+            print(f"[VPN] IP VPN locale détectée : {ip}")
+            return ip
+        else:
+            raise RuntimeError("Aucune IP détectée sur l'interface tun0")
+    except Exception as e:
+        raise RuntimeError(f"[ERREUR] Impossible de détecter l'IP VPN interne : {e}")
 
+def update_deluge_ip_in_config(new_ip):
+    print(f"[INFO] Mise à jour du fichier core.conf avec l'IP {new_ip}...")
+    try:
+        with open(config_path, 'r') as f:
+            lines = f.readlines()
 
-def update_deluge_ip(new_ip):
-    with open(config_path, 'r') as f:
-        lines = f.readlines()
-
-    with open(config_path, 'w') as f:
+        new_lines = []
+        has_listen = has_outgoing = False
         for line in lines:
             if '"listen_interface"' in line:
-                f.write(f'  "listen_interface": "{new_ip}",\n')
+                new_lines.append(f'  "listen_interface": "{new_ip}",\n')
+                has_listen = True
             elif '"outgoing_interface"' in line:
-                f.write(f'  "outgoing_interface": "{new_ip}",\n')
+                new_lines.append(f'  "outgoing_interface": "{new_ip}",\n')
+                has_outgoing = True
             else:
-                f.write(line)
+                new_lines.append(line)
+
+        if not has_listen:
+            new_lines.insert(-1, f'  "listen_interface": "{new_ip}",\n')
+        if not has_outgoing:
+            new_lines.insert(-1, f'  "outgoing_interface": "{new_ip}",\n')
+
+        with open(config_path, 'w') as f:
+            f.writelines(new_lines)
+
+        print("[INFO] Mise à jour du core.conf réussie.")
+    except Exception as e:
+        raise RuntimeError(f"[ERREUR] Échec de la mise à jour du core.conf : {e}")
 
 if __name__ == "__main__":
+    print("[SCRIPT] Début du script de configuration IP Deluge depuis VPN")
+    
     if is_deluge_running():
-        print("Deluge is running. Stopping it...")
         stop_deluge()
         time.sleep(2)
+    
+    vpn_ip = get_vpn_internal_ip()
+    update_deluge_ip_in_config(vpn_ip)
 
-    ip = get_vpn_ip()
-    update_deluge_ip(ip)
-    print(f"Updated Deluge config with VPN IP {ip}. Starting Deluge...")
     start_deluge()
 
-# def get_deluge_ip():
-#     """
-#     Récupère l'adresse IP de l'interface principale dans le conteneur Docker Deluge.
-#     Tente d'extraire l'adresse associée à `tun0` si elle existe, sinon celle de l'hôte.
-#     """
-#     try:
-#         # Essai de récupération via l'interface `tun0` si présente (VPN-bound Deluge)
-#         result = subprocess.run(
-#             ["docker", "exec", "deluge", "ip", "addr", "show", "tun0"],
-#             capture_output=True, text=True
-#         )
-#         match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
-#         if match:
-#             return match.group(1)
-#     except Exception as e:
-#         print(f"[DEBUG - get_deluge_ip - tun0] {e}")
-
-#     try:
-#         # Fallback vers IP classique (interne du conteneur)
-#         result = subprocess.run(
-#             ["docker", "exec", "deluge", "hostname", "-i"],
-#             capture_output=True, text=True
-#         )
-#         ip = result.stdout.strip().split()[0]
-#         return ip
-#     except Exception as e:
-#         raise RuntimeError(f"[DEBUG - get_deluge_ip - fallback] Could not detect IP inside deluge container: {e}")
-# deluge_ip = get_deluge_ip()
-# print(f"L'IP de Deluge est : {deluge_ip}")
+    print("[SUCCESS] IP mise à jour et Deluge relancé.")
