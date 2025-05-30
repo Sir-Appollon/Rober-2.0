@@ -27,7 +27,7 @@ services:
     volumes:
       - ${ROOT}/config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
-      - ./scripts/docker:/scripts
+      - ${ROOT}/scripts/docker:/scripts
     command: >
      bash -c "
       sleep 10 &&
