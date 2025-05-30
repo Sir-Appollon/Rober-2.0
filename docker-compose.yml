@@ -40,8 +40,6 @@ services:
     network_mode: "service:vpn"
     entrypoint: ["python3", "/scripts/start_deluge_after_vpn.py"]
     restart: always
-    depends_on:
-      - vpn
 
   deluge:
     image: linuxserver/deluge:latest
