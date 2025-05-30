@@ -345,10 +345,17 @@ deluge_stats = {
     "upload_rate": 0.0
 }
 try:
+    print("[DEBUG - DELUGE - Connecting to RPC...]")
     deluge_client = DelugeRPCClient("127.0.0.1", 58846, "localclient", os.getenv("DELUGE_PASSWORD"))
     deluge_client.connect()
-    torrents = deluge_client.call("core.get_torrents_status", {}, ["state", "download_payload_rate", "upload_payload_rate"])
-    for t in torrents.values():
+    print("[DEBUG - DELUGE - RPC connection successful]")
+
+    torrents = deluge_client.call("core.get_torrents_status", {}, ["name", "state", "download_payload_rate", "upload_payload_rate"])
+    print(f"[DEBUG - DELUGE - Torrent count: {len(torrents)}]")
+
+    for torrent_id, t in torrents.items():
+        print(f"[DEBUG - DELUGE - Torrent] ID: {torrent_id} | Name: {t.get('name')} | State: {t.get('state')} | DL: {t.get('download_payload_rate')} | UL: {t.get('upload_payload_rate')}")
+
         state = t.get("state")
         if state == "Downloading":
             deluge_stats["num_downloading"] += 1
@@ -360,8 +367,10 @@ try:
 
     deluge_stats["download_rate"] /= 1024  # KB/s
     deluge_stats["upload_rate"] /= 1024
+    print(f"[DEBUG - DELUGE - Stats] DL: {deluge_stats['download_rate']} KB/s | UL: {deluge_stats['upload_rate']} KB/s")
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
+
 
 
 disk_status = {}
@@ -381,7 +390,6 @@ for part in psutil.disk_partitions():
 try:
     vpn_ip_int = get_vpn_ip()
     deluge_ip_int = get_deluge_ip()
-    vpn_ip_pub = subprocess.check_output(["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]).decode().strip()
     deluge_ip_pub = subprocess.check_output(["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]).decode().strip()
     
     plex_msg_lines.append(f"[VPN IP] {vpn_ip_pub}")
@@ -390,6 +398,7 @@ try:
     plex_msg_lines.append(f"[DELUGE IP] {deluge_ip_int}")
 except Exception as e:
     plex_msg_lines.append(f"[NETWORK] Failed to retrieve VPN/Deluge IPs: {e}")
+
 
 try:
     data_entry = {

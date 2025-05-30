@@ -44,7 +44,7 @@ services:
     restart: unless-stopped
     depends_on:
       - vpn
-      
+
   # sev1_diag:
   #   build:
   #     context: ${ROOT}/scripts
