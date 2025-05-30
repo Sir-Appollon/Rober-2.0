@@ -266,7 +266,7 @@ services:
     network_mode: host
     restart: unless-stopped
   
-  health-bot:
+  discord-bot:
     build:
       context: ${ROOT}/scripts
       dockerfile: Dockerfile
@@ -275,6 +275,7 @@ services:
       - ${ROOT}/.env
     volumes:
       - /mnt/data:/mnt/data
+      - ${ROOT}/scripts/health:/app/scripts/health
     command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
     network_mode: host
