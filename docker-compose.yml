@@ -42,14 +42,7 @@ services:
       - ${ROOT}/scripts/docker:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-    restart: always
-    command: >
-      bash -c "
-        echo '[DELUGE] Lancement du script de configuration...' &&
-        python3 /scripts/start_deluge_after_vpn.py &&
-        echo '[DELUGE] Script terminé, lancement de Deluge...' &&
-        /init
-      "
+    command: /scripts/deluge-entrypoint.sh
     depends_on:
       - vpn
 
