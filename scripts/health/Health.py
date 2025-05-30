@@ -35,7 +35,7 @@ mode = "normal"
 
 # Load environment
 if not load_dotenv(dotenv_path="/app/.env"):
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path="../s../.env")
 
 # Setup logging
 log_file = "/mnt/data/entry_log_health.log"
