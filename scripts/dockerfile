@@ -2,15 +2,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install Docker CLI
+# Install Docker CLI + utilitaires
 RUN apt-get update && \
     apt-get install -y docker.io curl && \
     apt-get clean
 
+# Copier le code
 COPY core/ /app/
 COPY discord/ /app/discord/
+COPY scripts/health/ /app/scripts/health/
 COPY requirements.txt /app/
 
+# Installer les dépendances
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Par défaut : monitor_loop.py
 CMD ["python3", "monitor_loop.py"]

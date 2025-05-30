@@ -265,6 +265,19 @@ services:
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: host
     restart: unless-stopped
+  
+  health-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: health-bot
+    env_file:
+      - ${ROOT}/.env
+    volumes:
+      - /mnt/data:/mnt/data
+    command: ["python3", "/app/scripts/health/health_listener.py"]
+    restart: unless-stopped
+    network_mode: host
 
 networks:
   monitoring:
