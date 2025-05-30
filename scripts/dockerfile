@@ -10,7 +10,7 @@ RUN apt-get update && \
 # Copier le code
 COPY core/ /app/
 COPY discord/ /app/discord/
-COPY scripts/health/ /app/scripts/health/
+COPY health/ /app/scripts/health/
 COPY requirements.txt /app/
 
 # Installer les dépendances
