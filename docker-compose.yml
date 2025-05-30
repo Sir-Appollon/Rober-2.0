@@ -44,34 +44,7 @@ services:
     restart: unless-stopped
     depends_on:
       - vpn
-
-
-  # torrent_seeder:
-  #   image: linuxserver/qbittorrent
-  #   container_name: torrent_seeder
-  #   network_mode: service:vpn
-  #   environment:
-  #     - PUID=1000
-  #     - PGID=1000
-  #     - TZ=America/Toronto
-  #     - WEBUI_PORT=8081
-  #   volumes:
-  #     - ${ROOT}/seeder_data:/downloads
-  #     - ${ROOT}/shared:/shared
-  #     - ${ROOT}/config/seeder:/config
-  #   restart: unless-stopped
-
-  # vpn_peer_seed:
-  #   build:
-  #     context: ${ROOT}/scripts
-  #     dockerfile: Dockerfile
-  #   container_name: vpn_peer_seed
-  #   network_mode: service:vpn
-  #   volumes:
-  #     - ${ROOT}/shared:/shared
-  #   depends_on:
-  #     - vpn
-
+      
   # sev1_diag:
   #   build:
   #     context: ${ROOT}/scripts
