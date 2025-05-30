@@ -27,6 +27,12 @@ services:
     volumes:
       - ${ROOT}/config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
+      - ./scripts/docker:/scripts
+    command: >
+     bash -c "
+      sleep 10 &&
+      python3 /scripts/start_deluge_after_vpn.py
+     "
     restart: unless-stopped
 
   deluge:
@@ -42,6 +48,9 @@ services:
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
     restart: always
+    depends_on:
+      - vpn
+
 
   # torrent_seeder:
   #   image: linuxserver/qbittorrent
