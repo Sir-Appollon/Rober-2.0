@@ -275,7 +275,7 @@ services:
       - ${ROOT}/.env
     volumes:
       - /mnt/data:/mnt/data
-    command: ["python3", "/app/scripts/health/health_listener.py"]
+    command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
     network_mode: host
 
