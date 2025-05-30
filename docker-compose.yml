@@ -42,7 +42,7 @@ services:
       - ${ROOT}/scripts/docker:/scripts
       - /mnt/media/extra/downloads:/downloads
       - /mnt/media/extra/downloads/torrent-blackhole:/downloads/torrent-blackhole
-    command: /scripts/deluge-entrypoint.sh
+    entrypoint: ["/scripts/deluge-entrypoint.sh"]
     depends_on:
       - vpn
 
