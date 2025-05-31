@@ -108,13 +108,13 @@ async def get_last_data(ctx):
         if mode == "debug":
             print(f"[DEBUG - lastdata] Exception: {e}")
 
-@bot.command(name="addMovie")
-async def add_movie(ctx, *, title):
-    await handle_add_request(ctx, title, content_type="movie")
+# @bot.command(name="addMovie")
+# async def add_movie(ctx, *, title):
+#     await handle_add_request(ctx, title, content_type="movie")
 
-@bot.command(name="addTV")
-async def add_tv(ctx, *, title):
-    await handle_add_request(ctx, title, content_type="tv")
+# @bot.command(name="addTV")
+# async def add_tv(ctx, *, title):
+#     await handle_add_request(ctx, title, content_type="tv")
 
 # Start bot loop
 bot.run(TOKEN)
