@@ -115,14 +115,15 @@ async def add_movie(ctx, *, title=None):
     if not title:
         await ctx.send("❗ Utilisation : `!addMovie <titre du film>`")
         return
-    await handle_add_request(ctx, title, content_type="movie")
+    await handle_add_request("movie", title, ctx.channel)
+
 
 @bot.command(name="addTV")
 async def add_tv(ctx, *, title=None):
     if not title:
         await ctx.send("❗ Utilisation : `!addTV <titre de la série>`")
         return
-    await handle_add_request(ctx, title, content_type="tv")
+    await handle_add_request("tv", title, ctx.channel)
 
 # Start bot loop
 bot.run(TOKEN)
