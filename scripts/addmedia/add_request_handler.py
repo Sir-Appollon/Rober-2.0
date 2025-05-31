@@ -1,7 +1,7 @@
 # add_request_handler.py
 import asyncio
 from discord_notify import send_discord_message
-from addmedia.search_imdb import search_imdb
+from search_imdb import search_imdb
 
 # from radarr_sonarr_api import add_to_service  # Désactivé pour simulation
 
