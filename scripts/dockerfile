@@ -12,6 +12,7 @@ COPY core/ /app/
 COPY discord/ /app/discord/
 COPY health/ /app/health/
 COPY requirements.txt /app/
+COPY addmedia/ /app/addmedia/
 
 # Installer les dépendances
 RUN pip install --no-cache-dir -r requirements.txt
