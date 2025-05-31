@@ -22,11 +22,13 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import json
+import sys
+import os
 
 
 # Ajout du chemin pour import addmedia
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia")))
-
+from add_request_handler import handle_add_request
 # Mode: "normal" or "debug"
 mode = "debug"
 
@@ -61,7 +63,7 @@ async def run_health(ctx):
         if mode == "debug":
             print("[DEBUG - health_listener.py] Launching Health.py via subprocess.")
 
-        subprocess.run(["python3", "/app/scripts/health"], timeout=60)
+        subprocess.run(["python3", "/app/scripts/health/Health.py"], timeout=60)
 
         await ctx.send("Health check executed.")
 
@@ -108,13 +110,19 @@ async def get_last_data(ctx):
         if mode == "debug":
             print(f"[DEBUG - lastdata] Exception: {e}")
 
-# @bot.command(name="addMovie")
-# async def add_movie(ctx, *, title):
-#     await handle_add_request(ctx, title, content_type="movie")
+@bot.command(name="addMovie")
+async def add_movie(ctx, *, title=None):
+    if not title:
+        await ctx.send("❗ Utilisation : `!addMovie <titre du film>`")
+        return
+    await handle_add_request(ctx, title, content_type="movie")
 
-# @bot.command(name="addTV")
-# async def add_tv(ctx, *, title):
-#     await handle_add_request(ctx, title, content_type="tv")
+@bot.command(name="addTV")
+async def add_tv(ctx, *, title=None):
+    if not title:
+        await ctx.send("❗ Utilisation : `!addTV <titre de la série>`")
+        return
+    await handle_add_request(ctx, title, content_type="tv")
 
 # Start bot loop
 bot.run(TOKEN)
