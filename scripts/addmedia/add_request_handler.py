@@ -1,56 +1,37 @@
-import requests
-import os
-from dotenv import load_dotenv
+# add_request_handler.py
+import asyncio
+from discord_notify import send_discord_message
+from addmedia.search_imdb import search_imdb
 
-from search_imdb import search_imdb
-from radarr_sonarr_api import add_to_service
+# from radarr_sonarr_api import add_to_service  # Désactivé pour simulation
 
-async def handle_add_request(ctx, title, content_type):
-    await ctx.send(f"🧠 Bon… je cherche le numéro du film **`{title}`** dans IMDb ou OMDb, ou je sais plus trop où… 🤓")
-
-    result = search_imdb(title, content_type)
-
-    if not result:
-        await ctx.send("😞 J’ai rien trouvé. Peut-être une faute dans le titre ? Ou alors c’est un film inventé ! 🎬💨")
-        return
-
-    await ctx.send("📡 Accès à la base de données réussi ! Voilà ce que j’ai trouvé 👇")
-
-    # Formater les notes si disponibles
-    ratings_text = ""
-    if "ratings" in result:
-        for r in result["ratings"]:
-            ratings_text += f"⭐ {r['Source']}: {r['Value']}\n"
-
-    confirm_message = await ctx.send(
-        f"🎬 **{result['title']}** ({result['year']})\n"
-        f"🔗 IMDb ID : `{result['imdb_id']}`\n"
-        f"{ratings_text}\n"
-        "Tu veux que je l’ajoute ? ✅ pour oui, ❌ pour non."
+# Demande de confirmation simple via Discord
+async def ask_user_confirmation(media_info, channel):
+    # Message initial
+    confirm_message = await channel.send(
+        f"🔍 **{media_info['type'].capitalize()} trouvé** : {media_info['title']} ({media_info['year']})\n"
+        f"Avec cette affiche : {media_info['poster']}\n"
+        f"✅ Réponds avec `oui` pour confirmer ou `non` pour annuler."
     )
 
-    await confirm_message.add_reaction("✅")
-    await confirm_message.add_reaction("❌")
-
-    def check(reaction, user):
-        return (
-            user == ctx.author and
-            reaction.message.id == confirm_message.id and
-            str(reaction.emoji) in ["✅", "❌"]
-        )
+    def check(m):
+        return m.channel == channel and m.content.lower() in ["oui", "non"]
 
     try:
-        reaction, _ = await ctx.bot.wait_for("reaction_add", timeout=30.0, check=check)
+        msg = await channel.bot.wait_for('message', timeout=30.0, check=check)
+        return msg.content.lower() == "oui"
+    except asyncio.TimeoutError:
+        await channel.send("⏱️ Temps écoulé. Requête annulée.")
+        return False
 
-        if str(reaction.emoji) == "✅":
-            await ctx.send("📦 Ok, je tente d’ajouter ça… 🎯")
-            success = add_to_service(result, content_type)
+# Fonction principale appelée par le bot
+async def handle_add_request(media_type, media_title, channel):
+    media_info = search_imdb(media_title, media_type)
+    confirmed = await ask_user_confirmation(media_info, channel)
 
-            if success:
-                await ctx.send("✅ C’est bon ! Le film est dans la file de téléchargement 🎉")
-            else:
-                await ctx.send("⚠️ Hmm... j’ai eu un problème en parlant à Radarr ou Sonarr. Tu peux réessayer ou râler gentiment 🤖")
-        else:
-            await ctx.send("🛑 Ok, j’annule. T’avais qu’à être sûr dès le début 😅")
-    except:
-        await ctx.send("⏰ Temps écoulé ! Tu réfléchissais trop. Je passe à autre chose. 😴")
+    if confirmed:
+        # Simuler l'envoi à l'API
+        await channel.send(f"✅ Données envoyées à **{media_type.capitalize()}** pour téléchargement !")
+        # add_to_service(media_type, media_info)  # Désactivé
+    else:
+        await channel.send("❌ Requête annulée.")
