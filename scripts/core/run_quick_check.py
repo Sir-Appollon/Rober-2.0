@@ -1,11 +1,9 @@
 import os
-import sys
 import subprocess
 import logging
 import time
 import psutil
 import shutil
-import socket
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
 import importlib.util
@@ -295,48 +293,6 @@ if discord_connected:
 else:
     print("[DEBUG - run_quick_check.py - DISCORD - FAIL] No Discord message sent")
 
-# # Save all extracted values as CSV-like line
-# try:
-#     log_values = []
-
-#     log_values.append(str(int(env_loaded)))
-#     for service in critical_services:
-#         status = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", service], capture_output=True, text=True)
-#         log_values.append(str(int(status.stdout.strip() == "true")))
-
-#     log_values.append(str(int('vpn_ip_pub' in locals())))
-#     log_values.append(str(int('deluge_ip_pub' in locals())))
-#     log_values.append(str(int('vpn_ip_int' in locals())))
-#     log_values.append(str(int('deluge_ip_int' in locals())))
-
-#     log_values.append(str(int(internet_check.returncode == 0 if 'internet_check' in locals() else 0)))
-
-#     log_values.append(f"{round(download_speed,2) if 'download_speed' in locals() else 0.0}")
-#     log_values.append(f"{round(upload_speed,2) if 'upload_speed' in locals() else 0.0}")
-
-#     log_values.append(str(session_count if 'session_count' in locals() else 0))
-#     log_values.append(str(len(users_connected) if 'users_connected' in locals() else 0))
-#     log_values.append(str(transcode_count if 'transcode_count' in locals() else 0))
-
-#     log_values.append(f"{round(cpu,2) if 'cpu' in locals() else 0.0}")
-#     log_values.append(f"{round(mem,2) if 'mem' in locals() else 0.0}")
-#     log_values.append(f"{round(free_gb,2) if 'free_gb' in locals() else 0.0}")
-
-#     log_values.append(f"{round(cpu_total,2)}")
-#     log_values.append(f"{round(ram_total,2)}")
-#     log_values.append(f"{round(net_io.bytes_sent / (1024**2), 2)}")
-#     log_values.append(f"{round(net_io.bytes_recv / (1024**2), 2)}")
-#     log_values.append(f"{round(disk_io.read_bytes / (1024**2), 2)}")
-#     log_values.append(f"{round(disk_io.write_bytes / (1024**2), 2)}")
-#     log_values.append(f"{round(cpu_temp,2) if isinstance(cpu_temp, float) else 0.0}")
-#     log_values.append(f"{round(duration, 2)}")
-#     log_values.append(str(int(discord_connected)))
-
-#     with open("/mnt/data/entry_log_quick_check.log", "a") as f:
-#         f.write(",".join(log_values) + "\\n")
-
-# except Exception as e:
-#     logging.error(f"[LOGGING] Failed to write numeric log data: {e}")
 
 deluge_stats = {
     "num_downloading": 0,
@@ -420,50 +376,54 @@ for mount in custom_mounts:
 try:
     data_entry = {
         "docker_services": {
-            service: subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", service], capture_output=True, text=True).stdout.strip() == "true"
+            service: subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", service],
+                capture_output=True, text=True
+            ).stdout.strip() == "true"
             for service in ["plex-server", "vpn", "deluge"]
         },
         "network": {
-            "vpn_ip": [],
-            "deluge_ip": [],
-            "internet_access": False,
+            "vpn_ip": [vpn_ip_pub, vpn_ip_int] if 'vpn_ip_pub' in locals() and 'vpn_ip_int' in locals() else [],
+            "deluge_ip": [deluge_ip_pub, deluge_ip_int] if 'deluge_ip_pub' in locals() and 'deluge_ip_int' in locals() else [],
+            "internet_access": internet_check.returncode == 0 if 'internet_check' in locals() else False,
             "speedtest": {
-                "download_mbps": 0.0,
-                "upload_mbps": 0.0
+                "download_mbps": round(download_speed, 2) if 'download_speed' in locals() else 0.0,
+                "upload_mbps": round(upload_speed, 2) if 'upload_speed' in locals() else 0.0
             }
         },
         "plex": {
-            "connected": False,
-            "active_sessions": 0,
-            "unique_clients": 0,
-            "transcoding_sessions": 0,
-            "cpu_usage": 0.0,
-            "ram_usage": 0.0,
-            "transcode_folder_found": False,
+            "connected": 'plex' in locals(),
+            "active_sessions": session_count if 'session_count' in locals() else 0,
+            "unique_clients": len(users_connected) if 'users_connected' in locals() else 0,
+            "transcoding_sessions": transcode_count if 'transcode_count' in locals() else 0,
+            "cpu_usage": round(cpu, 2) if 'cpu' in locals() else 0.0,
+            "ram_usage": round(mem, 2) if 'mem' in locals() else 0.0,
+            "transcode_folder_found": 'free_gb' in locals(),
             "local_access": True,
             "external_access": "unknown"
         },
         "system": {
-            "cpu_total": 0.0,
-            "ram_total": 0.0,
-            "cpu_temp_c": 0.0,
+            "cpu_total": round(cpu_total, 2) if 'cpu_total' in locals() else 0.0,
+            "ram_total": round(ram_total, 2) if 'ram_total' in locals() else 0.0,
+            "cpu_temp_c": round(cpu_temp, 2) if isinstance(cpu_temp, float) else 0.0,
             "internet_io": {
-                "sent_mb": 0.0,
-                "received_mb": 0.0
+                "sent_mb": round(net_io.bytes_sent / (1024**2), 2) if 'net_io' in locals() else 0.0,
+                "received_mb": round(net_io.bytes_recv / (1024**2), 2) if 'net_io' in locals() else 0.0
             },
             "disk_io": {
-                "read_mb": 0.0,
-                "write_mb": 0.0
+                "read_mb": round(disk_io.read_bytes / (1024**2), 2) if 'disk_io' in locals() else 0.0,
+                "write_mb": round(disk_io.write_bytes / (1024**2), 2) if 'disk_io' in locals() else 0.0
             }
         },
-        "performance": {
-            "runtime_seconds": 0.0
-        },
         "deluge": deluge_stats,
-        "storage": disk_status
+        "storage": disk_status,
+        "performance": {
+            "runtime_seconds": round(duration, 2) if 'duration' in locals() else 0.0
+        }
     }
 
     append_json_log(data_entry)
 
 except Exception as e:
     logging.error(f"[JSON LOGGING] Failed to append JSON log: {e}")
+
