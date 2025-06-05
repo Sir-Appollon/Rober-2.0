@@ -20,6 +20,13 @@ mode = "normal"
 discord_connected = False
 print("[DEBUG - run_quick_check.py - INIT - 1] Script initiated")
 
+deluge_config = {
+    "host": "localhost",
+    "port": 58846,
+    "username": "localclient",
+    "password": os.getenv("DELUGE_PASSWORD"),
+}
+
 # Setup Discord
 print("[DEBUG - run_quick_check.py - INIT - 2] Initializing Discord connection")
 
@@ -112,23 +119,6 @@ def append_json_log(entry):
             f.seek(0)
             json.dump(logs, f, indent=2)
             f.truncate()
-
-
-# # Load .env
-# print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load .env")
-# env_loaded = False
-# for p in [
-#     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
-#     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
-# ]:
-#     if load_dotenv(p):
-#         print(f"[DEBUG - run_quick_check.py - ENV - 2] Loaded environment file: {p}")
-#         env_loaded = True
-#         break
-# if not env_loaded:
-#     print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
-# else:
-#     print("[DEBUG - run_quick_check.py - ENV - 4] Environment variables loaded successfully")
 
 print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load /app/.env")
 if load_dotenv("/app/.env"):
@@ -250,12 +240,18 @@ try:
                 pass
             break
 
+    TRANSCODE_PATH = "/home/paul/homelab/media_serveur/Rober-2.0/config/plex/transcode/Transcode"
+
     try:
-        usage = shutil.disk_usage("/transcode")
-        free_gb = usage.free / (1024**3)
-        plex_msg_lines.append(f"[DISK] /transcode free space: {free_gb:.2f} GB")
-    except:
-        plex_msg_lines.append("[DISK] /transcode folder not found")
+        if os.path.exists(TRANSCODE_PATH):
+            usage = shutil.disk_usage(TRANSCODE_PATH)
+            free_gb = usage.free / (1024**3)
+            plex_msg_lines.append(f"[DISK] Transcode free space: {free_gb:.2f} GB")
+        else:
+            plex_msg_lines.append(f"[DISK] Transcode folder not found at {TRANSCODE_PATH}")
+    except Exception as e:
+       plex_msg_lines.append(f"[DISK] Failed to access {TRANSCODE_PATH}: {e}")
+
 
     print("[DEBUG - run_quick_check.py - SYSTEM - 1] Gathering system stats")
     cpu_total = psutil.cpu_percent(interval=1)
@@ -294,53 +290,54 @@ else:
     print("[DEBUG - run_quick_check.py - DISCORD - FAIL] No Discord message sent")
 
 
-deluge_stats = {
-    "num_downloading": 0,
-    "num_seeding": 0,
-    "download_rate": 0.0,
-    "upload_rate": 0.0
-}
+def get_deluge_stats():
+    stats = {
+        "num_downloading": 0,
+        "num_seeding": 0,
+        "download_rate": 0.0,
+        "upload_rate": 0.0,
+        "num_peers": 0
+    }
 
-try:
-    print("[DEBUG - DELUGE - Connecting to RPC...]")
-    deluge_client = DelugeRPCClient("127.0.0.1", 58846, "localclient", os.getenv("DELUGE_PASSWORD"))
-    deluge_client.connect()
-    print("[DEBUG - DELUGE - RPC connection successful]")
+    try:
+        if mode == "debug":
+            print("[DEBUG - Deluge] Connecting to RPC...")
 
-    torrents = deluge_client.call(
-        "core.get_torrents_status",
-        {},
-        ["name", "state", "download_payload_rate", "upload_payload_rate"]
-    )
-    print(f"[DEBUG - DELUGE - Torrent count: {len(torrents)}]")
+        client = DelugeRPCClient(
+            deluge_config["host"],
+            deluge_config["port"],
+            deluge_config["username"],
+            deluge_config["password"],
+            False
+        )
+        client.connect()
 
-    for torrent_id, t in torrents.items():
-        name = t.get("name", b"").decode(errors="ignore") if isinstance(t.get("name"), bytes) else t.get("name")
-        state = t.get("state", b"").decode(errors="ignore") if isinstance(t.get("state"), bytes) else t.get("state")
-        dl_rate = t.get("download_payload_rate", 0)
-        ul_rate = t.get("upload_payload_rate", 0)
+        # Get per-torrent states
+        torrents = client.call("core.get_torrents_status", {}, ["state"])
+        for t in torrents.values():
+            state = t[b"state"]
+            if state == b"Downloading":
+                stats["num_downloading"] += 1
+            elif state == b"Seeding":
+                stats["num_seeding"] += 1
 
-        if isinstance(dl_rate, bytes):
-            dl_rate = int.from_bytes(dl_rate, "little")
-        if isinstance(ul_rate, bytes):
-            ul_rate = int.from_bytes(ul_rate, "little")
+        # Get session-wide stats
+        session_stats = client.call("core.get_session_status", [
+            "download_rate", "upload_rate", "num_peers"
+        ])
+        stats["download_rate"] = round(session_stats[b"download_rate"] / 1024, 2)  # KB/s
+        stats["upload_rate"] = round(session_stats[b"upload_rate"] / 1024, 2)      # KB/s
+        stats["num_peers"] = session_stats[b"num_peers"]
 
-        print(f"[DEBUG - DELUGE - Torrent] ID: {torrent_id} | Name: {name} | State: {state} | DL: {dl_rate} | UL: {ul_rate}")
+        if mode == "debug":
+            print(f"[DEBUG - Deluge] Stats: {stats}")
 
-        if state == "Downloading":
-            deluge_stats["num_downloading"] += 1
-        elif state == "Seeding":
-            deluge_stats["num_seeding"] += 1
+        return stats
 
-        deluge_stats["download_rate"] += dl_rate
-        deluge_stats["upload_rate"] += ul_rate
-
-    deluge_stats["download_rate"] /= 1024  # KB/s
-    deluge_stats["upload_rate"] /= 1024
-    print(f"[DEBUG - DELUGE - Stats] DL: {deluge_stats['download_rate']:.2f} KB/s | UL: {deluge_stats['upload_rate']:.2f} KB/s")
-
-except Exception as e:
-    print(f"[DEBUG - run_quick_check.py - DELUGE - Error] {e}")
+    except Exception as e:
+        if mode == "debug":
+            print(f"[DEBUG - Deluge] RPC error: {e}")
+        return None
 
 # Récupération des IPs avec fallback et ajout aux logs
 try:
@@ -374,6 +371,9 @@ for mount in custom_mounts:
 
 # Assemble system metrics for JSON output
 try:
+    # Récupération des statistiques Deluge
+    deluge_stats = get_deluge_stats() if 'get_deluge_stats' in globals() else None
+
     data_entry = {
         "docker_services": {
             service: subprocess.run(
@@ -415,7 +415,13 @@ try:
                 "write_mb": round(disk_io.write_bytes / (1024**2), 2) if 'disk_io' in locals() else 0.0
             }
         },
-        "deluge": deluge_stats,
+        "deluge": {
+            "num_downloading": deluge_stats["num_downloading"] if deluge_stats else 0,
+            "num_seeding": deluge_stats["num_seeding"] if deluge_stats else 0,
+            "download_rate_kbps": deluge_stats["download_rate"] if deluge_stats else 0.0,
+            "upload_rate_kbps": deluge_stats["upload_rate"] if deluge_stats else 0.0,
+            "num_peers": deluge_stats["num_peers"] if deluge_stats else 0
+        },
         "storage": disk_status,
         "performance": {
             "runtime_seconds": round(duration, 2) if 'duration' in locals() else 0.0
@@ -423,6 +429,7 @@ try:
     }
 
     append_json_log(data_entry)
+
 
 except Exception as e:
     logging.error(f"[JSON LOGGING] Failed to append JSON log: {e}")
