@@ -16,7 +16,7 @@ import re
 
 
 start_time = time.time()
-mode = "normal"
+mode = "debug"
 discord_connected = False
 print("[DEBUG - run_quick_check.py - INIT - 1] Script initiated")
 
@@ -310,7 +310,13 @@ def get_deluge_stats():
             deluge_config["password"],
             False
         )
-        client.connect()
+
+        try: 
+            client.connect()
+            print("[DEBUG - Deluge] RPC connection successful")
+        except Exception as conn_err:
+            print(f"[ERROR - Deluge] RPC connection FAILED: {conn_err}")
+            return None  # Stop here if connection fails
 
         # Get per-torrent states
         torrents = client.call("core.get_torrents_status", {}, ["state"])
