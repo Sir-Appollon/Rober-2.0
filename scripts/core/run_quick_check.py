@@ -228,7 +228,7 @@ try:
     else:
         plex_msg_lines.append("[LOCAL ACCESS] Plex NOT accessible locally")
 
-    EXTERNAL_PLEX_URL = os.getenv("PLEX_EXTERNAL_URL")
+    EXTERNAL_PLEX_URL = os.getenv("DOMAIN")
     external_accessible = "unknown"
 
     if EXTERNAL_PLEX_URL:
