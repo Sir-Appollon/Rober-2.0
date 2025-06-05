@@ -264,7 +264,7 @@ try:
         mem = 0.0
         plex_msg_lines.append(f"[PROCESS] Failed to get Plex usage via docker stats: {e}")
 
-    TRANSCODE_PATH = "/home/paul/homelab/media_serveur/Rober-2.0/config/plex/transcode/Transcode"
+    TRANSCODE_PATH = "/app/Transcode"
 
     try:
         if os.path.exists(TRANSCODE_PATH):
