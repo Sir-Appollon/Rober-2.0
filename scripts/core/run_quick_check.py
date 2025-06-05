@@ -228,7 +228,22 @@ try:
     else:
         plex_msg_lines.append("[LOCAL ACCESS] Plex NOT accessible locally")
 
-    plex_msg_lines.append("[EXTERNAL ACCESS] External check requires external IP/domain")
+    EXTERNAL_PLEX_URL = os.getenv("PLEX_EXTERNAL_URL")
+    external_accessible = "unknown"
+
+    if EXTERNAL_PLEX_URL:
+        try:
+            response_ext = subprocess.run(
+                ["curl", "-s", "--max-time", "5", EXTERNAL_PLEX_URL],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            external_accessible = "yes" if response_ext.returncode == 0 else "no"
+        except Exception as e:
+            external_accessible = "error"
+        plex_msg_lines.append(f"[EXTERNAL ACCESS] Plex accessible externally: {external_accessible}")
+    else:
+        plex_msg_lines.append("[EXTERNAL ACCESS] No external URL configured")
 
     for proc in psutil.process_iter(['name', 'cmdline']):
         if 'plex' in ' '.join(proc.info.get('cmdline', [])).lower():
@@ -406,7 +421,7 @@ try:
             "ram_usage": round(mem, 2) if 'mem' in locals() else 0.0,
             "transcode_folder_found": 'free_gb' in locals(),
             "local_access": True,
-            "external_access": "unknown"
+            "external_access": external_accessible
         },
         "system": {
             "cpu_total": round(cpu_total, 2) if 'cpu_total' in locals() else 0.0,
