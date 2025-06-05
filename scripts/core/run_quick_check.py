@@ -128,6 +128,7 @@ else:
     print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
     env_loaded = False
 
+print(f"[DEBUG] DELUGE_PASSWORD from env: {os.getenv('DELUGE_PASSWORD')}")
 
 plex_msg_lines = []
 

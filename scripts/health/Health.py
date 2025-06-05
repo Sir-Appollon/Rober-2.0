@@ -50,18 +50,12 @@ try:
 except Exception as e:
     print(f"[DEBUG] Import send_discord_message: FAILED → {e}")
 
-
-
-
 # Mode: "normal" or "debug"
 mode = "normal"
 
 # Load environment
 if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../../.env")
-
-print(f"[DEBUG] DELUGE_PASSWORD from env: {os.getenv('DELUGE_PASSWORD')}")
-
 
 # Setup logging
 log_file = "/mnt/data/entry_log_health.log"
