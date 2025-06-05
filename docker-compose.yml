@@ -156,6 +156,9 @@ services:
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/data:/mnt/data
+      - /mnt/media:/mnt/media
+      - /mnt/media/extra:/mnt/media/extra
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: host
     restart: unless-stopped
