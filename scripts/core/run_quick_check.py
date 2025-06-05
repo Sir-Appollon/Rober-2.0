@@ -27,6 +27,14 @@ deluge_config = {
     "password": os.getenv("DELUGE_PASSWORD"),
 }
 
+print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load /app/.env")
+if load_dotenv("/app/.env"):
+    print("[DEBUG - run_quick_check.py - ENV - 2] Loaded /app/.env")
+    env_loaded = True
+else:
+    print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
+    env_loaded = False
+
 # Setup Discord
 print("[DEBUG - run_quick_check.py - INIT - 2] Initializing Discord connection")
 
@@ -120,15 +128,6 @@ def append_json_log(entry):
             json.dump(logs, f, indent=2)
             f.truncate()
 
-print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load /app/.env")
-if load_dotenv("/app/.env"):
-    print("[DEBUG - run_quick_check.py - ENV - 2] Loaded /app/.env")
-    env_loaded = True
-else:
-    print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
-    env_loaded = False
-
-print(f"[DEBUG] DELUGE_PASSWORD from env: {os.getenv('DELUGE_PASSWORD')}")
 
 plex_msg_lines = []
 
