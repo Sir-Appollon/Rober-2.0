@@ -13,19 +13,10 @@ from datetime import datetime
 from deluge_client import DelugeRPCClient
 import re
 
-
-
 start_time = time.time()
 mode = "debug"
 discord_connected = False
 print("[DEBUG - run_quick_check.py - INIT - 1] Script initiated")
-
-deluge_config = {
-    "host": "localhost",
-    "port": 58846,
-    "username": "localclient",
-    "password": os.getenv("DELUGE_PASSWORD"),
-}
 
 print("[DEBUG - run_quick_check.py - ENV - 1] Attempting to load /app/.env")
 if load_dotenv("/app/.env"):
@@ -34,6 +25,14 @@ if load_dotenv("/app/.env"):
 else:
     print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
     env_loaded = False
+
+
+deluge_config = {
+    "host": "localhost",
+    "port": 58846,
+    "username": "localclient",
+    "password": os.getenv("DELUGE_PASSWORD"),
+}
 
 # Setup Discord
 print("[DEBUG - run_quick_check.py - INIT - 2] Initializing Discord connection")
