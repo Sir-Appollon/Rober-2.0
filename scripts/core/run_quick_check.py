@@ -31,7 +31,8 @@ deluge_config = {
     "host": "localhost",
     "port": 58846,
     "username": "localclient",
-    "password": os.getenv("DELUGE_PASSWORD"),
+    "password": "e0db9d7d51b2c62b7987031174607aa822f94bc9",
+#    "password": os.getenv("DELUGE_PASSWORD"),
 }
 
 # Setup Discord
