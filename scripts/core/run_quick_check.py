@@ -245,15 +245,20 @@ try:
     else:
         plex_msg_lines.append("[EXTERNAL ACCESS] No external URL configured")
 
-    for proc in psutil.process_iter(['name', 'cmdline']):
-        if 'plex' in ' '.join(proc.info.get('cmdline', [])).lower():
-            try:
-                cpu = proc.cpu_percent(interval=1)
-                mem = proc.memory_percent()
-                plex_msg_lines.append(f"[PROCESS] Plex CPU usage: {cpu:.2f}% | RAM usage: {mem:.2f}%")
-            except:
-                pass
-            break
+    try:
+        docker_stats_output = subprocess.check_output(
+            ["docker", "stats", "--no-stream", "--format", "{{.CPUPerc}} {{.MemPerc}}", "plex-server"]
+        ).decode().strip()
+
+        cpu_str, mem_str = docker_stats_output.split()
+        cpu = float(cpu_str.strip('%'))
+        mem = float(mem_str.strip('%'))
+
+        plex_msg_lines.append(f"[PROCESS] Plex CPU usage (Docker): {cpu:.2f}% | RAM usage: {mem:.2f}%")
+    except Exception as e:
+        cpu = 0.0
+        mem = 0.0
+        plex_msg_lines.append(f"[PROCESS] Failed to get Plex usage via docker stats: {e}")
 
     TRANSCODE_PATH = "/home/paul/homelab/media_serveur/Rober-2.0/config/plex/transcode/Transcode"
 
@@ -417,8 +422,8 @@ try:
             "active_sessions": session_count if 'session_count' in locals() else 0,
             "unique_clients": len(users_connected) if 'users_connected' in locals() else 0,
             "transcoding_sessions": transcode_count if 'transcode_count' in locals() else 0,
-            "cpu_usage": round(cpu, 2) if 'cpu' in locals() else 0.0,
-            "ram_usage": round(mem, 2) if 'mem' in locals() else 0.0,
+            "cpu_usage": round(cpu, 2),
+            "ram_usage": round(mem, 2),
             "transcode_folder_found": 'free_gb' in locals(),
             "local_access": True,
             "external_access": external_accessible
