@@ -60,6 +60,9 @@ mode = "normal"
 if not load_dotenv(dotenv_path="/app/.env"):
     load_dotenv(dotenv_path="../../.env")
 
+print(f"[DEBUG] DELUGE_PASSWORD from env: {os.getenv('DELUGE_PASSWORD')}")
+
+
 # Setup logging
 log_file = "/mnt/data/entry_log_health.log"
 logging.basicConfig(
