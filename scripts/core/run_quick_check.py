@@ -12,6 +12,10 @@ import json
 from datetime import datetime
 from deluge_client import DelugeRPCClient
 import re
+import multiprocessing
+
+core_count = multiprocessing.cpu_count()
+
 
 start_time = time.time()
 mode = "debug"
@@ -296,12 +300,12 @@ try:
 
     for line in plex_msg_lines:
         print(f"[DEBUG - run_quick_check.py - PLEX - INFO] {line}")
-    send_discord_message("Quick data acquisition : done")
+    #send_discord_message("Quick data acquisition : done")
     discord_connected = True
 
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
-    send_discord_message("Quick data acquisition : done with error")
+    #send_discord_message("Quick data acquisition : done with error")
     discord_connected = True
 
 if discord_connected:
@@ -422,7 +426,7 @@ try:
             "active_sessions": session_count if 'session_count' in locals() else 0,
             "unique_clients": len(users_connected) if 'users_connected' in locals() else 0,
             "transcoding_sessions": transcode_count if 'transcode_count' in locals() else 0,
-            "cpu_usage": round(cpu, 2),
+            "cpu_usage": round(cpu/core_count, 2),
             "ram_usage": round(mem, 2),
             "transcode_folder_found": 'free_gb' in locals(),
             "local_access": True,

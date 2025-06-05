@@ -87,20 +87,59 @@ async def get_last_data(ctx):
             logs = json.load(f)
             last_entry = logs[-1]
             timestamp = last_entry.get("timestamp", "N/A")
+
+            # System
             cpu = last_entry["system"]["cpu_total"]
             ram = last_entry["system"]["ram_total"]
+            temp = last_entry["system"].get("cpu_temp_c", "N/A")
+
+            # Network
             dl = last_entry["network"]["speedtest"]["download_mbps"]
             ul = last_entry["network"]["speedtest"]["upload_mbps"]
-            plex_sessions = last_entry["plex"]["active_sessions"]
-            deluge_dl = last_entry["deluge"]["download_rate"]
-            deluge_ul = last_entry["deluge"]["upload_rate"]
+
+            # Plex
+            plex = last_entry["plex"]
+            plex_sessions = plex["active_sessions"]
+            plex_transcoding = plex["transcoding_sessions"]
+            plex_cpu = plex["cpu_usage"]
+
+            # Deluge
+            deluge = last_entry["deluge"]
+            deluge_dl = deluge["download_rate_kbps"]
+            deluge_ul = deluge["upload_rate_kbps"]
+            deluge_downloading = deluge["num_downloading"]
+            deluge_seeding = deluge["num_seeding"]
+
+            # Storage
+            storage = last_entry["storage"]
+            storage_lines = ""
+            for mount, stats in storage.items():
+                size = stats["total_gb"]
+                used_pct = stats["used_pct"] if "used_pct" in stats else round((stats["used_gb"] / stats["total_gb"]) * 100, 1)
+                label = f"{mount} → {size:.2f} Go" if size < 1024 else f"{mount} → {size/1024:.2f} To"
+                storage_lines += f"\n • {label}, utilisé à {used_pct}%"
+
+            # Docker services
+            docker = last_entry["docker_services"]
+            docker_status = " | ".join([f"{'✅' if state else '❌'} {name}" for name, state in docker.items()])
+
+            # IP match
+            vpn_ips = last_entry["network"].get("vpn_ip", [])
+            deluge_ips = last_entry["network"].get("deluge_ip", [])
+            ip_match = any(ip in vpn_ips for ip in deluge_ips)
+            common_ip = next((ip for ip in deluge_ips if ip in vpn_ips), "N/A")
 
             summary = (
-                f"**Dernière entrée du système** ({timestamp})\n"
-                f"🖥️ CPU: {cpu}% | 🧠 RAM: {ram}%\n"
+                f"**Dernière entrée du système** (`{timestamp}`)\n"
+                f"🖥️ CPU: {cpu}% | 🧠 RAM: {ram}% | 🌡️ Température CPU: {temp}°C\n"
                 f"🌐 DL: {dl} Mbps | UL: {ul} Mbps\n"
                 f"🎞️ Plex sessions: {plex_sessions}\n"
-                f"🐌 Deluge: DL: {deluge_dl:.2f} KB/s | UL: {deluge_ul:.2f} KB/s"
+                f"🎞️ Plex transcoding: {plex_transcoding} | Plex CPU: {plex_cpu}%\n"
+                f"🐌 Deluge - Downloading: {deluge_downloading} | Seeding: {deluge_seeding}\n"
+                f"\t⬇️ DL: {deluge_dl:.2f} KB/s | ⬆️ UL: {deluge_ul:.2f} KB/s\n"
+                f"💾 Stockage :{storage_lines}\n"
+                f"🐳 Docker: {docker_status}\n"
+                f"🔁 Deluge IP = VPN IP ? {'✅' if ip_match else '❌'} ({common_ip})"
             )
 
             await ctx.send(summary)
@@ -109,6 +148,7 @@ async def get_last_data(ctx):
         await ctx.send(f"Erreur lecture log: {e}")
         if mode == "debug":
             print(f"[DEBUG - lastdata] Exception: {e}")
+
 
 @bot.command(name="addMovie")
 async def add_movie(ctx, *, title=None):

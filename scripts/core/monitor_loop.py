@@ -19,7 +19,7 @@ import os
 import importlib.util
 
 # Interval between checks in seconds (10 minutes)
-INTERVAL_SECONDS = 2700
+INTERVAL_SECONDS = 120
 
 # Set mode to "debug" to enable verbose output
 mode = "nomral"  # Change to "debug" for debug mode
