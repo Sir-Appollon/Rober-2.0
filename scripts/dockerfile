@@ -11,6 +11,7 @@ RUN apt-get update && \
 COPY core/ /app/
 COPY discord/ /app/discord/
 COPY health/ /app/health/
+COPY monitor/ /app/monitor/
 COPY requirements.txt /app/
 COPY addmedia/ /app/addmedia/
 
