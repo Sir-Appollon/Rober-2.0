@@ -102,6 +102,8 @@ async def get_last_data(ctx):
             plex_sessions = plex["active_sessions"]
             plex_transcoding = plex["transcoding_sessions"]
             plex_cpu = plex["cpu_usage"]
+            plex_local_acess = plex["local_access"]
+            plex_external_acess = plex["external_access"]
 
             # Deluge
             deluge = last_entry["deluge"]
@@ -135,6 +137,7 @@ async def get_last_data(ctx):
                 f"🌐 DL: {dl} Mbps | UL: {ul} Mbps\n"
                 f"🎞️ Plex sessions: {plex_sessions}\n"
                 f"🎞️ Plex transcoding: {plex_transcoding} | Plex CPU: {plex_cpu}%\n"
+                f"🖳 Plex is locally accessible: {plex_local_acess} | 📡 Plex is exernally accessible: {plex_cpu}\n"
                 f"🐌 Deluge - Downloading: {deluge_downloading} | Seeding: {deluge_seeding}\n"
                 f"\t⬇️ DL: {deluge_dl:.2f} KB/s | ⬆️ UL: {deluge_ul:.2f} KB/s\n"
                 f"💾 Stockage :{storage_lines}\n"
