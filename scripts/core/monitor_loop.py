@@ -62,12 +62,12 @@ def run_quick_check():
 
     return "FAILURE" in result.stdout
 
-def alerts_plex():
+def alerts():
     if mode == "debug":
-        print("[DEBUG - monitor_loop.py] Executing alerts_plex.py via subprocess")
+        print("[DEBUG - alerts.py] Executing alerts.py via subprocess")
 
     result = subprocess.run(
-    ["python3", "/app/alerts/alerts_plex.py"],  # ← Chemin corrigé
+    ["python3", "/app/alerts/alerts.py"],  # ← Chemin corrigé
     capture_output=True,
     text=True
 )
