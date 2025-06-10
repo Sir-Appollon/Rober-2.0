@@ -83,4 +83,5 @@ if __name__ == "__main__":
 
     while True:
         run_quick_check()
+        alerts()
         time.sleep(INTERVAL_SECONDS)
