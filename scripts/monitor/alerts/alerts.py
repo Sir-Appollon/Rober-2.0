@@ -4,7 +4,6 @@ import time
 import os
 import importlib.util
 
-
 LOG_FILE = "/mnt/data/system_monitor_log.json"
 PLEX_SERVICE_NAME = "plex-server"
 
@@ -44,14 +43,22 @@ def check_plex_local_access(data):
     local_access = plex.get("local_access", "no")
     return local_access == "yes"
 
-def check_plex_external_acess(data):
+def check_plex_external_access(data):  # <-- Corrected typo in function name
     plex = data.get("plex", {})
-    external_access = plex.get("external_access", "no")   
+    external_access = plex.get("external_access", "no")
     return external_access == "yes"
 
 def restart_plex():
     print("[ACTION] Redémarrage de Plex...")
     subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
+    if send_discord_message:
+        send_discord_message("[ALERTE] Plex a été redémarré automatiquement (local access failed).")
+
+def reconnect_plex():
+    print("[ACTION] Reconnect Plex...")
+    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
+    if send_discord_message:
+        send_discord_message("[INFO] Tentative de reconnexion de Plex (external access).")
 
 def main():
     print("[MONITOR] Surveillance en cours...")
@@ -61,16 +68,18 @@ def main():
 
     if not check_plex_local_access(data):
         print("[ALERTE] Plex est inaccessible localement.")
+        if send_discord_message:
+            send_discord_message("[ALERTE] Perte d'accès local à Plex détectée.")
         restart_plex()
     else:
         print("[OK] Plex est accessible localement.")
 
-    if not check_plex_external_acess(data):
-        print("[ALERTE] Plex est inaccessible localement.")
+    if not check_plex_external_access(data):
+        print("[ALERTE] Plex est inaccessible depuis l'extérieur.")
+        if send_discord_message:
+            send_discord_message("[ALERTE] Perte d'accès externe à Plex détectée.")
     else:
-        print("[OK] Plex est accessible localement.")
-
-
+        print("[OK] Plex est accessible depuis l'extérieur.")
 
 if __name__ == "__main__":
     main()
