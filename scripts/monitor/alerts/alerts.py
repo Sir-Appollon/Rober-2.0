@@ -42,13 +42,16 @@ def read_latest_data():
 
 def check_plex_local_access(data):
     plex = data.get("plex", {})
-    local_access = plex.get("local_access", "no")
-    return local_access == "yes"
+    local_access = plex.get("local_access", False)
+    print(f"[DEBUG] local_access = {local_access}")
+    return local_access is True or local_access == "yes"
 
-def check_plex_external_access(data):  # <-- Corrected typo in function name
+def check_plex_external_access(data):
     plex = data.get("plex", {})
-    external_access = plex.get("external_access", "no")
-    return external_access == "yes"
+    external_access = plex.get("external_access", False)
+    print(f"[DEBUG] external_access = {external_access}")
+    return external_access is True or external_access == "yes"
+
 
 def restart_plex():
     print("[ACTION] Redémarrage de Plex...")
