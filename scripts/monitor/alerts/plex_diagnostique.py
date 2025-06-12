@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 
 DUCKDNS_DOMAIN = "yourname.duckdns.org"  # ← à personnaliser
-NGINX_CONTAINER = "rober-20-nginx-1"
+NGINX_CONTAINER = "nginx-proxy"
 
 def check_duckdns_ip():
     try:
@@ -35,11 +35,12 @@ def check_ssl_certificate(domain):
         print(f"[SSL] Error: {e}")
         return False
 
-def check_nginx_config_docker(container_name):
+def test_nginx_config_inside_container(container_name):
     try:
         result = subprocess.run(
             ["docker", "exec", container_name, "nginx", "-t"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True
         )
         print("[NGINX] stdout:")
         print(result.stdout.strip())
@@ -47,8 +48,9 @@ def check_nginx_config_docker(container_name):
         print(result.stderr.strip())
         return result.returncode == 0
     except Exception as e:
-        print(f"[NGINX] Error: {e}")
+        print(f"[NGINX] Error (docker exec): {e}")
         return False
+
 
 
 if __name__ == "__main__":
