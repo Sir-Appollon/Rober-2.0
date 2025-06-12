@@ -52,7 +52,7 @@ def check_plex_external_access(data):  # <-- Corrected typo in function name
 
 def restart_plex():
     print("[ACTION] Redémarrage de Plex...")
-    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
+#    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
     if send_discord_message:
         send_discord_message("[ALERTE] Plex a été redémarré automatiquement (local access failed).")
 
