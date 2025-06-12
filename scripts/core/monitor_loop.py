@@ -18,13 +18,9 @@ import subprocess
 import os
 import importlib.util
 
-# Interval between checks in seconds (10 minutes)
 INTERVAL_SECONDS = 120
+mode = "debug"
 
-# Set mode to "debug" to enable verbose output
-mode = "nomral"  # Change to "debug" for debug mode
-
-# Discord notifier setup
 discord_paths = [
     os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
@@ -40,27 +36,37 @@ for discord_path in discord_paths:
             spec.loader.exec_module(discord_notify)
             send_discord_message = discord_notify.send_discord_message
             break
-        except Exception:
-            pass
+        except Exception as e:
+            if mode == "debug":
+                print(f"[DEBUG] Failed to import Discord notifier: {e}")
 
 if send_discord_message:
     send_discord_message("[INFO] monitor_loop.py started")
-
 
 def run_quick_check():
     if mode == "debug":
         print("[DEBUG - monitor_loop.py] Executing run_quick_check.py via subprocess")
 
     result = subprocess.run(
-    ["python3", "/app/run_quick_check.py"],  # ← Chemin corrigé
-    capture_output=True,
-    text=True
-)
+        ["python3", "/app/run_quick_check.py"],
+        capture_output=True,
+        text=True
+    )
+
     if mode == "debug":
         print("[DEBUG - monitor_loop.py] Subprocess output:")
         print(result.stdout.strip())
 
     return "FAILURE" in result.stdout
+
+if __name__ == "__main__":
+    if mode == "debug":
+        print("[DEBUG - monitor_loop.py] Starting monitor loop with interval:", INTERVAL_SECONDS)
+
+    while True:
+        run_quick_check()
+        time.sleep(INTERVAL_SECONDS)
+
 
 # def alerts():
 #     if mode == "debug":
@@ -75,13 +81,5 @@ def run_quick_check():
 #         print("[DEBUG - monitor_loop.py] Subprocess output:")
 #         print(result.stdout.strip())
 
-    return "FAILURE" in result.stdout
+#    return "FAILURE" in result.stdout
 
-if __name__ == "__main__":
-    if mode == "debug":
-        print("[DEBUG - monitor_loop.py] Starting monitor loop with interval:", INTERVAL_SECONDS)
-
-    while True:
-        run_quick_check()
-        alerts()
-        time.sleep(INTERVAL_SECONDS)
