@@ -59,21 +59,21 @@ def run_quick_check():
 
     return "FAILURE" in result.stdout
 
-# def alerts():
-#     if mode == "debug":
-#         print("[DEBUG - alerts.py] Executing alerts.py via subprocess")
+def alerts():
+    if mode == "debug":
+        print("[DEBUG - alerts.py] Executing alerts.py via subprocess")
 
-#     result = subprocess.run(
-#         ["python3", "/app/alerts/alerts.py"],
-#         capture_output=True,
-#         text=True
-#     )
+    result = subprocess.run(
+        ["python3", "/app/alerts/alerts.py"],
+        capture_output=True,
+        text=True
+    )
 
-#     if mode == "debug":
-#         print("[DEBUG - monitor_loop.py] Subprocess output:")
-#         print(result.stdout.strip())
+    if mode == "debug":
+        print("[DEBUG - monitor_loop.py] Subprocess output:")
+        print(result.stdout.strip())
 
-#     return "FAILURE" in result.stdout
+    return "FAILURE" in result.stdout
 
 
 if __name__ == "__main__":
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     while True:
         run_quick_check()
-        # alerts()
+        alerts()
         time.sleep(INTERVAL_SECONDS)
 
 

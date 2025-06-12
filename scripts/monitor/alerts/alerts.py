@@ -60,10 +60,24 @@ def restart_plex():
         send_discord_message("[ALERTE] Plex a été redémarré automatiquement (local access failed).")
 
 def reconnect_plex():
-    print("[ACTION] Reconnect Plex...")
-    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
+    print("[ACTION] Reconnect Plex... (running plex_diagnostique_online.py)")
+    try:
+        result = subprocess.run(
+            ["python3", "/app/alerts/plex_diagnostique_online.py"],
+            capture_output=True,
+            text=True
+        )
+        print("[DEBUG] plex_diagnostique_online.py output:")
+        print(result.stdout)
+        if result.stderr:
+            print("[DEBUG] Errors:")
+            print(result.stderr)
+    except Exception as e:
+        print(f"[ERROR] Failed to run plex_diagnostique_online.py: {e}")
+
     if send_discord_message:
-        send_discord_message("[INFO] Tentative de reconnexion de Plex (external access).")
+        send_discord_message("[INFO] Tentative de reconnexion de Plex (via diagnostique en ligne).")
+
 
 def main():
     print("[MONITOR] Surveillance en cours...")
