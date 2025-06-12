@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 
 DUCKDNS_DOMAIN = "yourname.duckdns.org"  # ← à personnaliser
-NGINX_CONTAINER = "nginx"  # ← le nom de ton conteneur NGINX
+NGINX_CONTAINER = "rober-20-nginx-1"
 
 def check_duckdns_ip():
     try:
