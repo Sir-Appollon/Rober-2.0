@@ -33,7 +33,9 @@ def read_latest_data():
     try:
         with open(LOG_FILE, "r") as f:
             logs = json.load(f)
-            return logs[-1]
+            latest = logs[-1]
+            print(f"[DEBUG] Données JSON lues : {json.dumps(latest, indent=2)}")
+            return latest
     except Exception as e:
         print(f"[ERROR] Impossible de lire les données : {e}")
         return None
