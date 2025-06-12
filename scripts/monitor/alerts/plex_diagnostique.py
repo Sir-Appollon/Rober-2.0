@@ -2,12 +2,10 @@ import socket
 import ssl
 import subprocess
 import requests
-import os
 from datetime import datetime
 
-
-DUCKDNS_DOMAIN = "yourname.duckdns.org"  # ← à adapter
-NGINX_CONF_PATH = "/etc/nginx/nginx.conf"  # ← à adapter selon ton système
+DUCKDNS_DOMAIN = "yourname.duckdns.org"  # ← à personnaliser
+NGINX_CONTAINER = "nginx"  # ← le nom de ton conteneur NGINX
 
 def check_duckdns_ip():
     try:
@@ -23,7 +21,7 @@ def check_duckdns_ip():
 def check_ssl_certificate(domain):
     try:
         context = ssl.create_default_context()
-        with socket.create_connection((domain, 443), timeout=5) as sock:
+        with socket.create_connection((domain, 443), timeout=10) as sock:
             with context.wrap_socket(sock, server_hostname=domain) as ssock:
                 cert = ssock.getpeercert()
                 subject = dict(x[0] for x in cert['subject'])
@@ -37,9 +35,12 @@ def check_ssl_certificate(domain):
         print(f"[SSL] Error: {e}")
         return False
 
-def check_nginx_config():
+def check_nginx_config_docker(container_name):
     try:
-        result = subprocess.run(["nginx", "-t", "-c", NGINX_CONF_PATH], capture_output=True, text=True)
+        result = subprocess.run(
+            ["docker", "exec", container_name, "nginx", "-t"],
+            capture_output=True, text=True
+        )
         print("[NGINX] stdout:")
         print(result.stdout.strip())
         print("[NGINX] stderr:")
@@ -59,8 +60,8 @@ if __name__ == "__main__":
     ssl_ok = check_ssl_certificate(DUCKDNS_DOMAIN)
     print(f"→ SSL ok: {ssl_ok}\n")
 
-    print("==== NGINX Config Check ====")
-    nginx_ok = check_nginx_config()
+    print("==== NGINX Config Check (Docker) ====")
+    nginx_ok = check_nginx_config_docker(NGINX_CONTAINER)
     print(f"→ NGINX config ok: {nginx_ok}\n")
 
     if all([duckdns_ok, ssl_ok, nginx_ok]):
