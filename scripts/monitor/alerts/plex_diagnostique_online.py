@@ -4,9 +4,19 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Charger le .env depuis la racine du projet
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.env"))
-load_dotenv(dotenv_path)
+# Vérifie si l'environnement est déjà prêt (via Docker)
+required_env_vars = ["DUCKDNS_TOKEN", "DOMAIN"]
+
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.env"))
+    if os.path.isfile(dotenv_path):
+        load_dotenv(dotenv_path)
+        print(f"[ENV] Chargé depuis {dotenv_path}")
+    else:
+        print(f"[ENV] Fichier .env introuvable à {dotenv_path}")
+else:
+    print("[ENV] Variables d’environnement déjà disponibles (Docker) ✅")
 
 # === DuckDNS settings (extracted once) ===
 duckdns_token = os.getenv("DUCKDNS_TOKEN")
