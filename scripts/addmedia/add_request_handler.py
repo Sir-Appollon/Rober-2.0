@@ -26,8 +26,15 @@ async def ask_user_confirmation(media_info, channel):
 
 # Fonction principale appelée par le bot
 async def handle_add_request(media_type, media_title, channel):
+    await channel.send(f"[DEBUG] Début traitement de la requête : {media_type} - {media_title}")
+    print(f"[DEBUG] Recherche IMDb pour : {media_title}")
     media_info = search_imdb(media_title, media_type)
+    await channel.send(f"[DEBUG] Résultat IMDb : {media_info}")
+    print(f"[DEBUG] Résultat IMDb : {media_info}")
+
     confirmed = await ask_user_confirmation(media_info, channel)
+    print(f"[DEBUG] Confirmation utilisateur : {confirmed}")
+    await channel.send(f"[DEBUG] Réponse utilisateur : {confirmed}")
 
     if confirmed:
         # Simuler l'envoi à l'API
