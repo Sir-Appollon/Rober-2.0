@@ -173,14 +173,19 @@ services:
       - ${ROOT}/.env
     volumes:  
       - /mnt/data:/mnt/data
-      - ${ROOT}/scripts/health:/app/scripts/health
+      - ${ROOT}/scripts/core:/app
       - ${ROOT}/scripts/discord:/app/discord
+      - ${ROOT}/scripts/health:/app/health
+      - ${ROOT}/scripts/monitor:/app/monitor
+      - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/scripts/addmedia:/app
       - ${ROOT}/scripts/adduser:/app
+      - ${ROOT}/scripts/requirements.txt:/app/requirements.txt
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
     network_mode: host
+
 
 networks:
   monitoring:
