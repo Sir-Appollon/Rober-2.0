@@ -176,6 +176,7 @@ services:
       - ${ROOT}/scripts/health:/app/scripts/health
       - ${ROOT}/scripts/discord:/app/scripts/discord
       - ${ROOT}/scripts/addmedia:/app/scripts/addmedia
+      - ${ROOT}/scripts/adduser:/app/scripts/adduser
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
