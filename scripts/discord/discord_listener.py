@@ -25,10 +25,12 @@ import json
 import sys
 import os
 
-# Ajout du chemin pour import addmedia
-# sys.path.append(
-#    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia"))
-# )
+# Ajout du chemin pour import
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from addmedia.add_request_handler import handle_add_request
 from adduser.plex_invite import invite_user
 
