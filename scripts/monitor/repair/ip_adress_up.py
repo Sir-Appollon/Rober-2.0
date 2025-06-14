@@ -56,7 +56,7 @@ def get_vpn_internal_ip():
 def update_deluge_ip_in_config(new_ip):
     print(f"[INFO] Mise à jour du fichier core.conf avec l'IP {new_ip}...")
     try:
-        with open(config_path, "r") as f:
+        with open(CONFIG_PATH, "r") as f:
             lines = f.readlines()
 
         new_lines = []
@@ -76,7 +76,7 @@ def update_deluge_ip_in_config(new_ip):
         if not has_outgoing:
             new_lines.insert(-1, f'  "outgoing_interface": "{new_ip}",\n')
 
-        with open(config_path, "w") as f:
+        with open(CONFIG_PATH, "w") as f:
             f.writelines(new_lines)
 
         print("[INFO] Mise à jour du core.conf réussie.")
