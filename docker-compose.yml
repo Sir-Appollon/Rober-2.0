@@ -174,7 +174,7 @@ services:
     volumes:  
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/health:/app/scripts/health
-      - ${ROOT}/scripts/discord:/app/scripts/discord
+      - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/addmedia:/app
       - ${ROOT}/scripts/adduser:/app
       - /var/run/docker.sock:/var/run/docker.sock
