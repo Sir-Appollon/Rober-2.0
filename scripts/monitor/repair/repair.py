@@ -124,6 +124,12 @@ def main():
                         "[ALLERTE - confirmation] Deluge est inactif : IP adresse différente."
                     )
                     send_discord_message(
+                        f"[DEBUG] VPN IP détectée : {vpn_ip}"
+                    )
+                    send_discord_message(
+                        f"[DEBUG] IP Deluge (listen) : {config_ips['listen_interface']} | IP Deluge (outgoing) : {config_ips['outgoing_interface']}"
+                    )
+                    send_discord_message(
                         "[ALLERTE - réparation] Lancement du script de réparation Deluge..."
                     )
                 launch_repair()
@@ -137,6 +143,7 @@ def main():
             print(f"[ERREUR] Échec de vérification secondaire : {e}")
             if send_discord_message:
                 send_discord_message(f"[ERREUR] Vérification échouée : {str(e)}")
+
 
 
 # if __name__ == "__main__":
