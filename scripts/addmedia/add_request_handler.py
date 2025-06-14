@@ -41,7 +41,7 @@ async def handle_add_request(media_type, media_title, channel):
         f"✅ Réponds avec `oui` pour confirmer ou `non` pour annuler."
     )
 
-    confirmed = await ask_user_confirmation(media_info, channel)
+    confirmed = await ask_user_confirmation(media_info, media_type, channel)
     print(f"[DEBUG] Confirmation utilisateur : {confirmed}")
     await channel.send(f"[DEBUG] Réponse utilisateur : {confirmed}")
 
@@ -53,4 +53,23 @@ async def handle_add_request(media_type, media_title, channel):
         return True
     else:
         await channel.send("❌ Requête annulée.")
+        return False
+
+
+# Demande de confirmation simple via Discord
+async def ask_user_confirmation(media_info, media_type, channel):
+    confirm_message = await channel.send(
+        f"🔍 **{media_type.capitalize()} trouvé** : {media_info['title']} ({media_info['year']})\n"
+        f"Avec cette affiche : {media_info['poster']}\n"
+        f"✅ Réponds avec `oui` pour confirmer ou `non` pour annuler."
+    )
+
+    def check(m):
+        return m.channel == channel and m.content.lower() in ["oui", "non"]
+
+    try:
+        msg = await channel.bot.wait_for('message', timeout=30.0, check=check)
+        return msg.content.lower() == "oui"
+    except asyncio.TimeoutError:
+        await channel.send("⏱️ Temps écoulé. Requête annulée.")
         return False
