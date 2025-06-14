@@ -181,7 +181,7 @@ async def add_movie(ctx, *, title=None):
     await ctx.send("⏳ Tentative d'ajout en cours...")
 
     try:
-        result = await handle_add_request("movie", title, ctx.channel)
+        result = await handle_add_request("movie", title, ctx.channel, bot)
         if result is False:
             await ctx.send("⚠️ La fonction a été appelée mais a échoué.")
         else:
