@@ -5,6 +5,7 @@ import os
 import importlib.util
 
 LOG_FILE = "/mnt/data/system_monitor_log.json"
+ALERT_STATE_FILE = "/mnt/data/alert_state.json"
 PLEX_SERVICE_NAME = "plex-server"
 
 # Chargement du module Discord
@@ -31,6 +32,19 @@ for discord_path in discord_paths:
             break
         except Exception:
             pass
+
+
+# Fichier état des alertes
+def load_alert_state():
+    if os.path.exists(ALERT_STATE_FILE):
+        with open(ALERT_STATE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_alert_state(state):
+    with open(ALERT_STATE_FILE, "w") as f:
+        json.dump(state, f)
 
 
 # fct test
@@ -74,7 +88,7 @@ def check_plex_external_access(data):
 # Redémarre le conteneur Plex
 def restart_plex():
     print("[ACTION] Redémarrage de Plex...")
-    #    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
+    # subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
     if send_discord_message:
         send_discord_message(
             "[ALERTE] Plex a été redémarré automatiquement (local access failed)."
@@ -127,11 +141,17 @@ def check_plex_internet_connectivity():
         return False
 
 
-# Vérifie si le débit Deluge est nul
+# Vérifie si le débit Deluge est nul avec gestion d’état
 def check_deluge_activity(data):
+    state = load_alert_state()
     deluge = data.get("deluge", {})
     download_kbps = deluge.get("download_rate_kbps", None)
     upload_kbps = deluge.get("upload_rate_kbps", None)
+
+    current_state = (
+        "inactive" if download_kbps == 0.0 and upload_kbps == 0.0 else "active"
+    )
+    last_state = state.get("deluge_status")
 
     print(
         f"[DEBUG] Débit Deluge - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
@@ -142,14 +162,21 @@ def check_deluge_activity(data):
             f"[INFO] Débit Deluge : {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
         )
 
-    if download_kbps == 0.0 and upload_kbps == 0.0:
-        print("[ALERTE] Deluge n'a aucun trafic en cours.")
+    if current_state == "inactive" and last_state != "inactive":
+        print("[ALERTE] Deluge passe en inactif.")
         if send_discord_message:
             send_discord_message(
-                "[ALERTE] Deluge semble inactif : aucun trafic entrant ou sortant détecté."
+                "[ALERTE - initial] Deluge semble inactif : aucun trafic entrant ou sortant détecté."
             )
-        return True
-    return False
+    elif current_state == "active" and last_state == "inactive":
+        print("[ALERTE] Fin d'inactivité Deluge.")
+        if send_discord_message:
+            send_discord_message(
+                "[ALERTE - initial] Deluge est redevenu actif : fin de l’événement."
+            )
+
+    state["deluge_status"] = current_state
+    save_alert_state(state)
 
 
 # Fonction principale de surveillance
