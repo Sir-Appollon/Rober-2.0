@@ -1,6 +1,6 @@
 import asyncio
 from discord_notify import send_discord_message
-from search_imdb import search_imdb
+from .search_imdb import search_imdb
 from radarr_sonarr_check import is_already_in_radarr, is_already_in_plex
 
 # from radarr_sonarr_api import add_to_service  # Disabled for testing
