@@ -29,8 +29,8 @@ import os
 # sys.path.append(
 #    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia"))
 # )
-from add_request_handler import handle_add_request
-from plex_invite import invite_user
+from addmedia.add_request_handler import handle_add_request
+from adduser.plex_invite import invite_user
 
 # Mode: "normal" or "debug"
 mode = "debug"
