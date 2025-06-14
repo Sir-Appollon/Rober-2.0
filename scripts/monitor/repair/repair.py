@@ -3,9 +3,13 @@ import subprocess
 import os
 import re
 import importlib.util
+import requests
+from dotenv import load_dotenv
 
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
 CONFIG_PATH = "/app/config/deluge/core.conf"
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.env"))
+load_dotenv(dotenv_path)
 
 send_discord_message = None
 
@@ -92,7 +96,7 @@ def verify_interface_consistency():
     )
 
 
-def launch_repair():
+def launch_repair_deluge_ip():
     print("[ACTION] Launching Deluge repair procedure...")
     subprocess.run(["python3", "/app/repair/ip_adress_up.py"])
 
@@ -117,7 +121,7 @@ def handle_deluge_verification():
                 send_discord_message(
                     "[ALERT - confirmation] Deluge is inactive: mismatched IP address."
                 )
-            launch_repair()
+            launch_repair_deluge_ip()
             if send_discord_message:
                 send_discord_message(
                     f"[ALERT - repair complete] IP address updated: {vpn_ip}"
@@ -129,11 +133,41 @@ def handle_deluge_verification():
         if send_discord_message:
             send_discord_message(f"[ERROR] Verification failed: {str(e)}")
 
+def check_plex_external_status():
+    domain = os.getenv("DOMAIN")
+    plex_token = os.getenv("PLEX_TOKEN")
+
+    if not domain or not plex_token:
+        print("[ERROR] DOMAIN or PLEX_TOKEN not set in environment.")
+        return
+
+    url = f"{domain.rstrip('/')}/status/sessions"
+    headers = {"X-Plex-Token": plex_token}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+
+        if response.status_code == 200:
+            print("[INFO] Plex external access is online.")
+        elif response.status_code in [301, 302, 401]:
+            print(f"[INFO] Plex might be online (status: {response.status_code}), possible redirect or unauthorized.")
+            if send_discord_message:
+                send_discord_message("[INFO] Plex external responded, probably online. Possible false error (redirect or auth).")
+        else:
+            print(f"[ALERT] Plex external returned status code {response.status_code}")
+            if send_discord_message:
+                send_discord_message(f"[ALERT] Plex external access appears to be offline (status code {response.status_code}).")
+    except Exception as e:
+        print(f"[ERROR] Plex external check failed: {e}")
+        if send_discord_message:
+            send_discord_message("[ALERT] Plex external access is offline (exception during check).")
+
 
 def main():
     print("[DEBUG] repair.py is running")
     setup_discord()
     handle_deluge_verification()
+    check_plex_external_status()
 
 
 main()
