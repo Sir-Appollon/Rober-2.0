@@ -8,7 +8,7 @@ LOG_FILE = "/mnt/data/system_monitor_log.json"
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
 PLEX_SERVICE_NAME = "plex-server"
 
-# Chargement du module Discord
+# Load Discord module
 discord_paths = [
     os.path.abspath(
         os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
@@ -34,7 +34,7 @@ for discord_path in discord_paths:
             pass
 
 
-# Fichier état des alertes
+# Alert state file
 def load_alert_state():
     if os.path.exists(ALERT_STATE_FILE):
         with open(ALERT_STATE_FILE, "r") as f:
@@ -47,29 +47,27 @@ def save_alert_state(state):
         json.dump(state, f)
 
 
-# fct test
+# Test function
 def start_alert_sequence():
-    print("[ALERTE] Début de la séquence d’alerte.")
+    print("[ALERT] Alert sequence started.")
     if send_discord_message:
-        send_discord_message(
-            "[ALERTE] 📡 Début de la séquence de surveillance et d’alerte."
-        )
+        send_discord_message("[ALERT] 📡 Monitoring and alert sequence started.")
 
 
-# Lecture du dernier log JSON
+# Read the latest JSON log
 def read_latest_data():
     try:
         with open(LOG_FILE, "r") as f:
             logs = json.load(f)
             latest = logs[-1]
-            print(f"[DEBUG] Données JSON lues : {json.dumps(latest, indent=2)}")
+            print(f"[DEBUG] JSON data read: {json.dumps(latest, indent=2)}")
             return latest
     except Exception as e:
-        print(f"[ERROR] Impossible de lire les données : {e}")
+        print(f"[ERROR] Unable to read data: {e}")
         return None
 
 
-# Vérifie l'accès local à Plex
+# Check Plex local access
 def check_plex_local_access(data):
     plex = data.get("plex", {})
     local_access = plex.get("local_access", False)
@@ -77,7 +75,7 @@ def check_plex_local_access(data):
     return local_access is True or local_access == "yes"
 
 
-# Vérifie l'accès externe à Plex
+# Check Plex external access
 def check_plex_external_access(data):
     plex = data.get("plex", {})
     external_access = plex.get("external_access", False)
@@ -85,17 +83,17 @@ def check_plex_external_access(data):
     return external_access is True or external_access == "yes"
 
 
-# Redémarre le conteneur Plex
+# Restart the Plex container
 def restart_plex():
-    print("[ACTION] Redémarrage de Plex...")
+    print("[ACTION] Restarting Plex...")
     # subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
     if send_discord_message:
         send_discord_message(
-            "[ALERTE] Plex a été redémarré automatiquement (local access failed)."
+            "[ALERT] Plex was automatically restarted (local access failed)."
         )
 
 
-# Lance un script de reconnexion pour Plex
+# Run reconnect script for Plex
 def reconnect_plex():
     print("[ACTION] Reconnect Plex... (running plex_diagnostique_online.py)")
     try:
@@ -114,11 +112,11 @@ def reconnect_plex():
 
     if send_discord_message:
         send_discord_message(
-            "[INFO] Tentative de reconnexion de Plex (via diagnostique en ligne)."
+            "[INFO] Attempting to reconnect Plex (via online diagnostics)."
         )
 
 
-# Vérifie la connectivité Internet depuis l'hôte (ou conteneur si adapté)
+# Check Internet connectivity (from host or container)
 def check_plex_internet_connectivity():
     try:
         result = subprocess.run(
@@ -127,21 +125,23 @@ def check_plex_internet_connectivity():
             stderr=subprocess.DEVNULL,
         )
         if result.returncode != 0:
-            print("[ALERTE  - initial] Plex semble ne pas avoir d'accès Internet (ping échoué).")
+            print(
+                "[ALERT - initial] Plex seems to have no Internet access (ping failed)."
+            )
             if send_discord_message:
                 send_discord_message(
-                    "[ALERTE  - ENDD] Plex ne semble plus avoir d'accès Internet."
+                    "[ALERT - END] Plex appears to have lost Internet access."
                 )
             return False
         else:
-            print("[OK] Plex a accès à Internet.")
+            print("[OK] Plex has Internet access.")
             return True
     except Exception as e:
-        print(f"[ERROR] Échec de vérification Internet Plex: {e}")
+        print(f"[ERROR] Failed to check Plex Internet connectivity: {e}")
         return False
 
 
-# Vérifie si le débit Deluge est nul avec gestion d’état
+# Check if Deluge speed is zero (with state handling)
 def check_deluge_activity(data):
     state = load_alert_state()
     deluge = data.get("deluge", {})
@@ -154,53 +154,51 @@ def check_deluge_activity(data):
     last_state = state.get("deluge_status")
 
     print(
-        f"[DEBUG] Débit Deluge - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
+        f"[DEBUG] Deluge Speed - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
     )
 
     # if send_discord_message:
     #     send_discord_message(
-    #         f"[INFO] Débit Deluge : {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
+    #         f"[INFO] Deluge speed: {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
     #     )
 
     if current_state == "inactive" and last_state != "inactive":
-        print("[ALERTE] Deluge passe en inactif.")
+        print("[ALERT] Deluge has become inactive.")
         if send_discord_message:
             send_discord_message(
-                "[ALERTE - initial] Deluge semble inactif : aucun trafic entrant ou sortant détecté."
+                "[ALERT - initial] Deluge appears to be inactive: no incoming or outgoing traffic detected."
             )
     elif current_state == "active" and last_state == "inactive":
-        print("[ALERTE] Fin d'inactivité Deluge.")
+        print("[ALERT] Deluge inactivity ended.")
         if send_discord_message:
-            send_discord_message(
-                "[ALERTE - END] Deluge est redevenu actif : fin de l’événement."
-            )
+            send_discord_message("[ALERT - END] Deluge is active again: event ended.")
 
     state["deluge_status"] = current_state
     save_alert_state(state)
 
 
-# Fonction principale de surveillance
+# Main monitoring function
 def main():
-    print("[MONITOR] Surveillance en cours...")
+    print("[MONITOR] Monitoring in progress...")
     #    start_alert_sequence()
     data = read_latest_data()
     if data is None:
         return
 
     if not check_plex_local_access(data):
-        print("[ALERTE] Plex est inaccessible localement.")
+        print("[ALERT] Plex is not accessible locally.")
         if send_discord_message:
-            send_discord_message("[ALERTE] Perte d'accès local à Plex détectée.")
+            send_discord_message("[ALERT] Local access to Plex lost.")
         restart_plex()
     else:
-        print("[OK] Plex est accessible localement.")
+        print("[OK] Plex is accessible locally.")
 
     if not check_plex_external_access(data):
-        print("[ALERTE] Plex est inaccessible depuis l'extérieur.")
+        print("[ALERT] Plex is not accessible externally.")
         if send_discord_message:
-            send_discord_message("[ALERTE] Perte d'accès externe à Plex détectée.")
+            send_discord_message("[ALERT] External access to Plex lost.")
     else:
-        print("[OK] Plex est accessible depuis l'extérieur.")
+        print("[OK] Plex is accessible externally.")
 
     check_plex_internet_connectivity()
     check_deluge_activity(data)

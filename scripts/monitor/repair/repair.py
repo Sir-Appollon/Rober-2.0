@@ -8,8 +8,7 @@ ALERT_STATE_FILE = "/mnt/data/alert_state.json"
 CONFIG_PATH = "/app/config/deluge/core.conf"
 # CONFIG_PATH = "../../config/deluge/core.conf"
 
-
-# Chargement du module Discord
+# Load Discord notification module
 discord_paths = [
     os.path.abspath(
         os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
@@ -20,7 +19,6 @@ discord_paths = [
 ]
 
 send_discord_message = None
-
 
 for discord_path in discord_paths:
     if os.path.isfile(discord_path):
@@ -35,11 +33,10 @@ for discord_path in discord_paths:
         except Exception:
             pass
 
-
-print("[DEBUG] repair.py en cours d'exécution")
+print("[DEBUG] repair.py is running")
 
 if send_discord_message:
-    send_discord_message("[DEBUG] repair.py a bien été lancé")
+    send_discord_message("[DEBUG] repair.py was successfully launched")
 
 
 def load_alert_state():
@@ -50,7 +47,7 @@ def load_alert_state():
 
 
 def get_vpn_internal_ip():
-    print("[INFO] Récupération de l'IP interne du VPN (tun0)...")
+    print("[INFO] Retrieving internal VPN IP (tun0)...")
     try:
         result = subprocess.run(
             ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
@@ -60,12 +57,12 @@ def get_vpn_internal_ip():
         match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
         if match:
             ip = match.group(1)
-            print(f"[VPN] IP VPN locale détectée : {ip}")
+            print(f"[VPN] Local VPN IP detected: {ip}")
             return ip
         else:
-            raise RuntimeError("Aucune IP détectée sur l'interface tun0")
+            raise RuntimeError("No IP detected on interface tun0")
     except Exception as e:
-        raise RuntimeError(f"[ERREUR] Impossible de détecter l'IP VPN interne : {e}")
+        raise RuntimeError(f"[ERROR] Failed to detect internal VPN IP: {e}")
 
 
 def extract_interface_ips_from_config():
@@ -79,7 +76,7 @@ def extract_interface_ips_from_config():
                 "outgoing_interface": outgoing.group(1) if outgoing else None,
             }
     except Exception as e:
-        raise RuntimeError(f"[ERREUR] Lecture core.conf échouée : {e}")
+        raise RuntimeError(f"[ERROR] Failed to read core.conf: {e}")
 
 
 def verify_interface_consistency():
@@ -101,52 +98,46 @@ def verify_interface_consistency():
 
 
 def launch_repair():
-    print("[ACTION] Lancement de la procédure de réparation Deluge...")
+    print("[ACTION] Launching Deluge repair procedure...")
     subprocess.run(["python3", "/app/repair/ip_adress_up.py"])
 
 
 def main():
     state = load_alert_state()
     if state.get("deluge_status") == "inactive":
-        print("[INFO] Deluge inactif détecté dans l’état précédent.")
+        print("[INFO] Deluge was marked as inactive in previous state.")
         if send_discord_message:
             send_discord_message(
-                "[ALERTE - test] Deluge semble inactif : validation de l'erreur."
+                "[ALERT - test] Deluge appears inactive: validating the issue."
             )
 
         try:
             consistent, vpn_ip, config_ips = verify_interface_consistency()
 
             if not consistent:
-                print("[CONFIRMÉ] IP incohérente : déclenchement réparation.")
+                print("[CONFIRMED] Inconsistent IP: triggering repair.")
                 if send_discord_message:
                     send_discord_message(
-                        "[ALLERTE - confirmation] Deluge est inactif : IP adresse différente."
+                        "[ALERT - confirmation] Deluge is inactive: mismatched IP address."
                     )
-                    send_discord_message(
-                        f"[DEBUG] VPN IP détectée : {vpn_ip}"
-                    )
-                    send_discord_message(
-                        f"[DEBUG] IP Deluge (listen) : {config_ips['listen_interface']} | IP Deluge (outgoing) : {config_ips['outgoing_interface']}"
-                    )
-                    send_discord_message(
-                        "[ALLERTE - réparation] Lancement du script de réparation Deluge..."
-                    )
+                    # send_discord_message(f"[DEBUG] Detected VPN IP: {vpn_ip}")
+                    # send_discord_message(
+                    #     f"[DEBUG] Deluge IPs - listen: {config_ips['listen_interface']} | outgoing: {config_ips['outgoing_interface']}"
+                    # )
+                    # send_discord_message(
+                    #     "[ALERT - repair] Launching Deluge repair script..."
+                    # )
                 launch_repair()
                 if send_discord_message:
                     send_discord_message(
-                        f"[ALLERTE - fin de réparation] Adresse IP mise à jour : {vpn_ip}"
+                        f"[ALERT - repair complete] IP address updated: {vpn_ip}"
                     )
             else:
-                print("[INFO] IP cohérente, pas de réparation requise.")
+                print("[INFO] IPs are consistent, no repair needed.")
         except Exception as e:
-            print(f"[ERREUR] Échec de vérification secondaire : {e}")
+            print(f"[ERROR] Secondary verification failed: {e}")
             if send_discord_message:
-                send_discord_message(f"[ERREUR] Vérification échouée : {str(e)}")
+                send_discord_message(f"[ERROR] Verification failed: {str(e)}")
 
-
-
-# if __name__ == "__main__":
-#     main()
 
 main()
