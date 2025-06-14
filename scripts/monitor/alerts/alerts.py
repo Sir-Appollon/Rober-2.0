@@ -137,6 +137,11 @@ def check_deluge_activity(data):
         f"[DEBUG] Débit Deluge - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
     )
 
+    if send_discord_message:
+        send_discord_message(
+            f"[INFO] Débit Deluge : {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
+        )
+
     if download_kbps == 0.0 and upload_kbps == 0.0:
         print("[ALERTE] Deluge n'a aucun trafic en cours.")
         if send_discord_message:
