@@ -171,6 +171,7 @@ def main():
         print("[OK] Plex est accessible depuis l'extérieur.")
 
     check_plex_internet_connectivity()
+    check_deluge_activity(data)
 
 
 if __name__ == "__main__":
