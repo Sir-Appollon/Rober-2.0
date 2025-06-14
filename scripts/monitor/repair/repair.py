@@ -6,37 +6,34 @@ import importlib.util
 
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
 CONFIG_PATH = "/app/config/deluge/core.conf"
-# CONFIG_PATH = "../../config/deluge/core.conf"
-
-# Load Discord notification module
-discord_paths = [
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
-    ),
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")
-    ),
-]
 
 send_discord_message = None
 
-for discord_path in discord_paths:
-    if os.path.isfile(discord_path):
-        try:
-            spec = importlib.util.spec_from_file_location(
-                "discord_notify", discord_path
+
+def setup_discord():
+    global send_discord_message
+    discord_paths = [
+        os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
+        ),
+        os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__), "..", "discord", "discord_notify.py"
             )
-            discord_notify = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(discord_notify)
-            send_discord_message = discord_notify.send_discord_message
-            break
-        except Exception:
-            pass
-
-print("[DEBUG] repair.py is running")
-
-# if send_discord_message:
-#     send_discord_message("[DEBUG] repair.py was successfully launched")
+        ),
+    ]
+    for discord_path in discord_paths:
+        if os.path.isfile(discord_path):
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    "discord_notify", discord_path
+                )
+                discord_notify = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(discord_notify)
+                send_discord_message = discord_notify.send_discord_message
+                break
+            except Exception:
+                pass
 
 
 def load_alert_state():
@@ -88,10 +85,8 @@ def verify_interface_consistency():
     print(f"[DEBUG] core.conf outgoing_interface = {config_ips['outgoing_interface']}")
 
     return (
-        (
-            config_ips["listen_interface"] == vpn_ip
-            and config_ips["outgoing_interface"] == vpn_ip
-        ),
+        config_ips["listen_interface"] == vpn_ip
+        and config_ips["outgoing_interface"] == vpn_ip,
         vpn_ip,
         config_ips,
     )
@@ -102,42 +97,43 @@ def launch_repair():
     subprocess.run(["python3", "/app/repair/ip_adress_up.py"])
 
 
-def main():
+def handle_deluge_verification():
     state = load_alert_state()
-    if state.get("deluge_status") == "inactive":
-        print("[INFO] Deluge was marked as inactive in previous state.")
-        if send_discord_message:
-            send_discord_message(
-                "[ALERT - test] Deluge appears inactive: validating the issue."
-            )
+    if state.get("deluge_status") != "inactive":
+        return
 
-        try:
-            consistent, vpn_ip, config_ips = verify_interface_consistency()
+    print("[INFO] Deluge was marked as inactive in previous state.")
+    if send_discord_message:
+        send_discord_message(
+            "[ALERT - test] Deluge appears inactive: validating the issue."
+        )
 
-            if not consistent:
-                print("[CONFIRMED] Inconsistent IP: triggering repair.")
-                if send_discord_message:
-                    send_discord_message(
-                        "[ALERT - confirmation] Deluge is inactive: mismatched IP address."
-                    )
-                    # send_discord_message(f"[DEBUG] Detected VPN IP: {vpn_ip}")
-                    # send_discord_message(
-                    #     f"[DEBUG] Deluge IPs - listen: {config_ips['listen_interface']} | outgoing: {config_ips['outgoing_interface']}"
-                    # )
-                    # send_discord_message(
-                    #     "[ALERT - repair] Launching Deluge repair script..."
-                    # )
-                launch_repair()
-                if send_discord_message:
-                    send_discord_message(
-                        f"[ALERT - repair complete] IP address updated: {vpn_ip}"
-                    )
-            else:
-                print("[INFO] IPs are consistent, no repair needed.")
-        except Exception as e:
-            print(f"[ERROR] Secondary verification failed: {e}")
+    try:
+        consistent, vpn_ip, config_ips = verify_interface_consistency()
+
+        if not consistent:
+            print("[CONFIRMED] Inconsistent IP: triggering repair.")
             if send_discord_message:
-                send_discord_message(f"[ERROR] Verification failed: {str(e)}")
+                send_discord_message(
+                    "[ALERT - confirmation] Deluge is inactive: mismatched IP address."
+                )
+            launch_repair()
+            if send_discord_message:
+                send_discord_message(
+                    f"[ALERT - repair complete] IP address updated: {vpn_ip}"
+                )
+        else:
+            print("[INFO] IPs are consistent, no repair needed.")
+    except Exception as e:
+        print(f"[ERROR] Secondary verification failed: {e}")
+        if send_discord_message:
+            send_discord_message(f"[ERROR] Verification failed: {str(e)}")
+
+
+def main():
+    print("[DEBUG] repair.py is running")
+    setup_discord()
+    handle_deluge_verification()
 
 
 main()
