@@ -1,8 +1,7 @@
-# add_request_handler.py
-
 import asyncio
 from discord_notify import send_discord_message
 from search_imdb import search_imdb
+from radarr_sonarr_check import is_already_in_radarr, is_already_in_plex
 
 # from radarr_sonarr_api import add_to_service  # Disabled for testing
 
@@ -94,9 +93,24 @@ async def handle_add_request(media_type, media_title, channel, bot):
         await channel.send("⏱️ Timeout. Request cancelled.")
         return False
 
-    # Simulate adding media (replace with actual call to Radarr/Sonarr)
+    # Check if already in Radarr
+    imdb_id = selected.get("imdb_id")
+    if await is_already_in_radarr(imdb_id):
+        await channel.send(
+            "📀 This movie is already in the Radarr library. No action taken."
+        )
+        return False
+
+    # Optional: Check Plex availability
+    if await is_already_in_plex(selected["title"]):
+        await channel.send(
+            "🎞️ This movie is already available in Plex. No action taken."
+        )
+        return False
+
+    # Proceed to add (simulate or real)
     # add_to_service(media_type, selected)
     await channel.send(
-        f"📥 Download started for **{selected['title']} ({selected['year']})**."
+        f"✅ Test passed. Next step: add downloading for **{selected['title']} ({selected['year']})**."
     )
     return True
