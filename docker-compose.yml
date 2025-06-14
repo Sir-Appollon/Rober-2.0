@@ -173,7 +173,7 @@ services:
       - ${ROOT}/.env
     volumes:  
       - /mnt/data:/mnt/data
-      - ${ROOT}/scripts/core:/app
+      - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/health:/app/health
       - ${ROOT}/scripts/monitor:/app/monitor
