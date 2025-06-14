@@ -5,7 +5,9 @@ import re
 import importlib.util
 
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
-CONFIG_PATH = "../../config/deluge/core.conf"
+CONFIG_PATH = "/app/config/deluge/core.conf"
+# CONFIG_PATH = "../../config/deluge/core.conf"
+
 
 # Chargement du module Discord
 discord_paths = [
@@ -18,7 +20,6 @@ discord_paths = [
 ]
 
 send_discord_message = None
-
 
 
 for discord_path in discord_paths:

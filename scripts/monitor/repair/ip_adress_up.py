@@ -6,7 +6,7 @@ import re
 import os
 
 # Chemin vers le core.conf depuis le host
-config_path = "../../config/deluge/core.conf"
+CONFIG_PATH = "/app/config/deluge/core.conf"
 
 
 def stop_deluge():
