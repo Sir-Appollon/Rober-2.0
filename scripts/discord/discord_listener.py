@@ -175,19 +175,19 @@ async def get_last_data(ctx):
 @bot.command(name="addMovie")
 async def add_movie(ctx, *, title=None):
     if not title:
-        await ctx.send("❗ Utilisation : `!addMovie <titre du film>`")
+        await ctx.send("❗ Usage: `!addMovie <movie title>`")
         return
 
-    await ctx.send("⏳ Tentative d'ajout en cours...")
+    await ctx.send("⏳ Attempting to add the movie...")
 
     try:
         result = await handle_add_request("movie", title, ctx.channel, bot)
         if result is False:
-            await ctx.send("⚠️ La fonction a été appelée mais a échoué.")
+            await ctx.send("⚠️ The function was called but failed.")
         else:
-            await ctx.send("✅ Ajout réussi.")
+            await ctx.send("✅ Movie successfully added.")
     except Exception as e:
-        await ctx.send(f"❌ Erreur avant ou pendant l’appel de la fonction : {e}")
+        await ctx.send(f"❌ Error occurred before or during the function call: {e}")
 
 
 # Start bot loop
