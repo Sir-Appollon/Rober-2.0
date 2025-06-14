@@ -7,7 +7,7 @@ import importlib.util
 LOG_FILE = "/mnt/data/system_monitor_log.json"
 PLEX_SERVICE_NAME = "plex-server"
 
-# Discord notifier setup
+# Chargement du module Discord
 discord_paths = [
     os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
@@ -26,9 +26,7 @@ for discord_path in discord_paths:
         except Exception:
             pass
 
-if send_discord_message:
-    send_discord_message("[INFO] alert.py started")
-
+# Lecture du dernier log JSON
 def read_latest_data():
     try:
         with open(LOG_FILE, "r") as f:
@@ -40,25 +38,28 @@ def read_latest_data():
         print(f"[ERROR] Impossible de lire les données : {e}")
         return None
 
+# Vérifie l'accès local à Plex
 def check_plex_local_access(data):
     plex = data.get("plex", {})
     local_access = plex.get("local_access", False)
     print(f"[DEBUG] local_access = {local_access}")
     return local_access is True or local_access == "yes"
 
+# Vérifie l'accès externe à Plex
 def check_plex_external_access(data):
     plex = data.get("plex", {})
     external_access = plex.get("external_access", False)
     print(f"[DEBUG] external_access = {external_access}")
     return external_access is True or external_access == "yes"
 
-
+# Redémarre le conteneur Plex
 def restart_plex():
     print("[ACTION] Redémarrage de Plex...")
 #    subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
     if send_discord_message:
         send_discord_message("[ALERTE] Plex a été redémarré automatiquement (local access failed).")
 
+# Lance un script de reconnexion pour Plex
 def reconnect_plex():
     print("[ACTION] Reconnect Plex... (running plex_diagnostique_online.py)")
     try:
@@ -78,7 +79,27 @@ def reconnect_plex():
     if send_discord_message:
         send_discord_message("[INFO] Tentative de reconnexion de Plex (via diagnostique en ligne).")
 
+# Vérifie la connectivité Internet depuis l'hôte (ou conteneur si adapté)
+def check_plex_internet_connectivity():
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "2", "8.8.8.8"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        if result.returncode != 0:
+            print("[ALERTE] Plex semble ne pas avoir d'accès Internet (ping échoué).")
+            if send_discord_message:
+                send_discord_message("[ALERTE] Plex ne semble plus avoir d'accès Internet.")
+            return False
+        else:
+            print("[OK] Plex a accès à Internet.")
+            return True
+    except Exception as e:
+        print(f"[ERROR] Échec de vérification Internet Plex: {e}")
+        return False
 
+# Fonction principale de surveillance
 def main():
     print("[MONITOR] Surveillance en cours...")
     data = read_latest_data()
@@ -99,6 +120,8 @@ def main():
             send_discord_message("[ALERTE] Perte d'accès externe à Plex détectée.")
     else:
         print("[OK] Plex est accessible depuis l'extérieur.")
+
+    check_plex_internet_connectivity()
 
 if __name__ == "__main__":
     main()

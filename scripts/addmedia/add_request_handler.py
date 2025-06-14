@@ -33,8 +33,13 @@ async def handle_add_request(media_type, media_title, channel):
     )
     print(f"[DEBUG] Recherche IMDb pour : {media_title}")
     media_info = search_imdb(media_title, media_type)
-    await channel.send(f"[DEBUG] Résultat IMDb : {media_info}")
     print(f"[DEBUG] Résultat IMDb : {media_info}")
+
+    await channel.send(
+        f"🔍 **{media_type.capitalize()} trouvé** : {media_info['title']} ({media_info['year']})\n"
+        f"Avec cette affiche : {media_info['poster']}\n"
+        f"✅ Réponds avec `oui` pour confirmer ou `non` pour annuler."
+    )
 
     confirmed = await ask_user_confirmation(media_info, channel)
     print(f"[DEBUG] Confirmation utilisateur : {confirmed}")
