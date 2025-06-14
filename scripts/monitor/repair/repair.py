@@ -19,6 +19,8 @@ discord_paths = [
 
 send_discord_message = None
 
+
+
 for discord_path in discord_paths:
     if os.path.isfile(discord_path):
         try:
@@ -31,6 +33,12 @@ for discord_path in discord_paths:
             break
         except Exception:
             pass
+
+
+print("[DEBUG] repair.py en cours d'exécution")
+
+if send_discord_message:
+    send_discord_message("[DEBUG] repair.py a bien été lancé")
 
 
 def load_alert_state():
@@ -130,5 +138,7 @@ def main():
                 send_discord_message(f"[ERREUR] Vérification échouée : {str(e)}")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
+
+main()
