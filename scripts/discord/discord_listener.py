@@ -27,8 +27,11 @@ import os
 
 
 # Ajout du chemin pour import addmedia
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia")))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia"))
+)
 from add_request_handler import handle_add_request
+
 # Mode: "normal" or "debug"
 mode = "debug"
 
@@ -45,16 +48,20 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+
 @bot.event
 async def on_ready():
     if mode == "debug":
         print("[DEBUG - health_listener.py] Discord bot connected and ready.")
 
+
 @bot.command(name="health")
 async def run_health(ctx):
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
-            print(f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}")
+            print(
+                f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}"
+            )
         return
 
     await ctx.send("Running health check...")
@@ -77,7 +84,9 @@ async def run_health(ctx):
 async def get_last_data(ctx):
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
-            print(f"[DEBUG - lastdata] Command from unauthorized channel: {ctx.channel.id}")
+            print(
+                f"[DEBUG - lastdata] Command from unauthorized channel: {ctx.channel.id}"
+            )
         return
 
     log_file = "/mnt/data/system_monitor_log.json"
@@ -117,13 +126,23 @@ async def get_last_data(ctx):
             storage_lines = ""
             for mount, stats in storage.items():
                 size = stats["total_gb"]
-                used_pct = stats["used_pct"] if "used_pct" in stats else round((stats["used_gb"] / stats["total_gb"]) * 100, 1)
-                label = f"{mount} → {size:.2f} Go" if size < 1024 else f"{mount} → {size/1024:.2f} To"
+                used_pct = (
+                    stats["used_pct"]
+                    if "used_pct" in stats
+                    else round((stats["used_gb"] / stats["total_gb"]) * 100, 1)
+                )
+                label = (
+                    f"{mount} → {size:.2f} Go"
+                    if size < 1024
+                    else f"{mount} → {size/1024:.2f} To"
+                )
                 storage_lines += f"\n • {label}, utilisé à {used_pct}%"
 
             # Docker services
             docker = last_entry["docker_services"]
-            docker_status = " | ".join([f"{'✅' if state else '❌'} {name}" for name, state in docker.items()])
+            docker_status = " | ".join(
+                [f"{'✅' if state else '❌'} {name}" for name, state in docker.items()]
+            )
 
             # IP match
             vpn_ips = last_entry["network"].get("vpn_ip", [])
@@ -158,7 +177,18 @@ async def add_movie(ctx, *, title=None):
     if not title:
         await ctx.send("❗ Utilisation : `!addMovie <titre du film>`")
         return
-    await handle_add_request("movie", title, ctx.channel)
+
+    await ctx.send("⏳ Tentative d'ajout en cours...")
+
+    try:
+        result = await handle_add_request("movie", title, ctx.channel)
+        if result is False:
+            await ctx.send("⚠️ La fonction a été appelée mais a échoué.")
+        else:
+            await ctx.send("✅ Ajout réussi.")
+    except Exception as e:
+        await ctx.send(f"❌ Erreur avant ou pendant l’appel de la fonction : {e}")
+
 
 # Start bot loop
 bot.run(TOKEN)
