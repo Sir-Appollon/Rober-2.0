@@ -127,10 +127,10 @@ def check_plex_internet_connectivity():
             stderr=subprocess.DEVNULL,
         )
         if result.returncode != 0:
-            print("[ALERTE] Plex semble ne pas avoir d'accès Internet (ping échoué).")
+            print("[ALERTE  - initial] Plex semble ne pas avoir d'accès Internet (ping échoué).")
             if send_discord_message:
                 send_discord_message(
-                    "[ALERTE] Plex ne semble plus avoir d'accès Internet."
+                    "[ALERTE  - ENDD] Plex ne semble plus avoir d'accès Internet."
                 )
             return False
         else:
@@ -157,10 +157,10 @@ def check_deluge_activity(data):
         f"[DEBUG] Débit Deluge - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
     )
 
-    if send_discord_message:
-        send_discord_message(
-            f"[INFO] Débit Deluge : {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
-        )
+    # if send_discord_message:
+    #     send_discord_message(
+    #         f"[INFO] Débit Deluge : {download_kbps:.2f} kB/s ↓ | {upload_kbps:.2f} kB/s ↑"
+    #     )
 
     if current_state == "inactive" and last_state != "inactive":
         print("[ALERTE] Deluge passe en inactif.")
@@ -172,7 +172,7 @@ def check_deluge_activity(data):
         print("[ALERTE] Fin d'inactivité Deluge.")
         if send_discord_message:
             send_discord_message(
-                "[ALERTE - initial] Deluge est redevenu actif : fin de l’événement."
+                "[ALERTE - END] Deluge est redevenu actif : fin de l’événement."
             )
 
     state["deluge_status"] = current_state
@@ -182,7 +182,7 @@ def check_deluge_activity(data):
 # Fonction principale de surveillance
 def main():
     print("[MONITOR] Surveillance en cours...")
-    start_alert_sequence()
+    #    start_alert_sequence()
     data = read_latest_data()
     if data is None:
         return
