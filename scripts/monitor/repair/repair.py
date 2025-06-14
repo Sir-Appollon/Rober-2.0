@@ -93,7 +93,7 @@ def verify_interface_consistency():
 
 def launch_repair():
     print("[ACTION] Lancement de la procédure de réparation Deluge...")
-    subprocess.run(["python3", "/app/alerts/ip_adress_up.py"])
+    subprocess.run(["python3", "/app/repair/ip_adress_up.py"])
 
 
 def main():
