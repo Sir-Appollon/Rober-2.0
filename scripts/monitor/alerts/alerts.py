@@ -33,6 +33,15 @@ for discord_path in discord_paths:
             pass
 
 
+# fct test
+def start_alert_sequence():
+    print("[ALERTE] Début de la séquence d’alerte.")
+    if send_discord_message:
+        send_discord_message(
+            "[ALERTE] 📡 Début de la séquence de surveillance et d’alerte."
+        )
+
+
 # Lecture du dernier log JSON
 def read_latest_data():
     try:
@@ -141,6 +150,7 @@ def check_deluge_activity(data):
 # Fonction principale de surveillance
 def main():
     print("[MONITOR] Surveillance en cours...")
+    start_alert_sequence()
     data = read_latest_data()
     if data is None:
         return
