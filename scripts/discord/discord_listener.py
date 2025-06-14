@@ -25,12 +25,12 @@ import json
 import sys
 import os
 
-
 # Ajout du chemin pour import addmedia
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia"))
 )
 from add_request_handler import handle_add_request
+from adduser.plex_invite import invite_user
 
 # Mode: "normal" or "debug"
 mode = "debug"
@@ -188,6 +188,25 @@ async def add_movie(ctx, *, title=None):
             await ctx.send("✅ Movie successfully added.")
     except Exception as e:
         await ctx.send(f"❌ Error occurred before or during the function call: {e}")
+
+
+@bot.command(name="adduser")
+async def add_user(ctx, *, email=None):
+    if not email:
+        await ctx.send("❗ Usage: `!adduser user@example.com`")
+        return
+
+    await ctx.send(f"📨 Sending Plex invite to `{email}`...")
+
+    status, response = invite_user(email)
+    if status == 201:
+        await ctx.send("✅ Invite sent successfully.")
+    elif status == 409:
+        await ctx.send("⚠️ User already invited or has access.")
+    else:
+        await ctx.send(
+            f"❌ Invite failed (status {status}). Details:\n```{response}```"
+        )
 
 
 # Start bot loop
