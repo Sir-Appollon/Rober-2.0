@@ -35,8 +35,8 @@ for discord_path in discord_paths:
 
 print("[DEBUG] repair.py is running")
 
-if send_discord_message:
-    send_discord_message("[DEBUG] repair.py was successfully launched")
+# if send_discord_message:
+#     send_discord_message("[DEBUG] repair.py was successfully launched")
 
 
 def load_alert_state():
