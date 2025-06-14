@@ -95,18 +95,24 @@ async def handle_add_request(media_type, media_title, channel, bot):
 
     # Check if already in Radarr
     imdb_id = selected.get("imdb_id")
+    await channel.send(f"🔍 Checking Radarr for IMDb ID: `{imdb_id}`...")
     if await is_already_in_radarr(imdb_id):
         await channel.send(
             "📀 This movie is already in the Radarr library. No action taken."
         )
         return False
+    else:
+        await channel.send("✅ Not found in Radarr.")
 
-    # Optional: Check Plex availability
+    # Check Plex availability
+    await channel.send(f"🔍 Checking Plex for title: `{selected['title']}`...")
     if await is_already_in_plex(selected["title"]):
         await channel.send(
             "🎞️ This movie is already available in Plex. No action taken."
         )
         return False
+    else:
+        await channel.send("✅ Not found in Plex.")
 
     # Proceed to add (simulate or real)
     # add_to_service(media_type, selected)
