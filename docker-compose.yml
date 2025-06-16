@@ -78,6 +78,26 @@ services:
       - /dev/dri:/dev/dri
     restart: unless-stopped
 
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    restart: unless-stopped
+    network_mode: bridge
+    ports:
+      - "8265:8265"   # Web UI
+      - "8266:8266"   # Server Port
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - serverIP=0.0.0.0
+      - serverPort=8266
+    volumes:
+      - /mnt/media:/mnt/media
+      - ${ROOT}/config/tdarr:/app/configs
+      - ${ROOT}/config/tdarr/server:/app/server
+      - ${ROOT}/config/tdarr/client:/app/client
+
   radarr:
     image: linuxserver/radarr:latest
     container_name: radarr
