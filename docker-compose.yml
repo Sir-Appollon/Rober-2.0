@@ -108,8 +108,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - nodeID=MyNode
-      - serverIP=192.168.3.39  # ← IP réelle de ton hôte Docker
-      - serverPort=8266
+      - serverURL=http://192.168.3.39:8266
     ports: []
     networks:
       - tdarr-net
