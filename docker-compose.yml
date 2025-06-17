@@ -98,6 +98,23 @@ services:
       - ${ROOT}/config/tdarr/server:/app/server
       - ${ROOT}/config/tdarr/client:/app/client
 
+  tdarr_node:
+    image: ghcr.io/haveagitgat/tdarr_node:latest
+    container_name: tdarr_node
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - nodeID=MyNode
+      - serverIP=tdarr
+      - serverPort=8266
+    network_mode: service:tdarr
+    volumes:
+      - /mnt/media:/mnt/media
+      - ${ROOT}/config/tdarr/server:/app/server
+      - ${ROOT}/config/tdarr/client:/app/client
+
   radarr:
     image: linuxserver/radarr:latest
     container_name: radarr
