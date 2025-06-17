@@ -82,7 +82,6 @@ services:
     image: ghcr.io/haveagitgat/tdarr:latest
     container_name: tdarr
     restart: unless-stopped
-    network_mode: bridge
     ports:
       - "8265:8265"   # Web UI
       - "8266:8266"   # Server Port
