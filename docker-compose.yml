@@ -90,7 +90,7 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - serverIP=0.0.0.0
+      - serverIP=192.168.3.39 
       - serverPort=8266
     volumes:
       - /mnt/media:/mnt/media
