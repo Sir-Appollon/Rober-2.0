@@ -92,6 +92,8 @@ services:
       - TZ=${TZ}
       - serverIP=192.168.3.39 
       - serverPort=8266
+    networks:
+      - tdarr-net
     volumes:
       - /mnt/media:/mnt/media
       - ${ROOT}/config/tdarr:/app/configs
@@ -110,6 +112,8 @@ services:
       - serverIP=192.168.3.39  # ← IP réelle de ton hôte Docker
       - serverPort=8266
     ports: []
+    networks:
+      - tdarr-net
     volumes:
       - /mnt/media:/mnt/media
       - ${ROOT}/config/tdarr/server:/app/server
@@ -229,6 +233,8 @@ services:
 
 networks:
   monitoring:
+    driver: bridge
+  tdarr-net:
     driver: bridge
 
 volumes:
