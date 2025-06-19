@@ -92,12 +92,15 @@ services:
       - serverIP=192.168.3.39 
       - serverPort=8266
     networks:
-      - tdarr-net
+      tdarr-net:
+        aliases:
+          - tdarr
     volumes:
       - /mnt/media:/mnt/media
       - ${ROOT}/config/tdarr:/app/configs
       - ${ROOT}/config/tdarr/server:/app/server
       - ${ROOT}/config/tdarr/client:/app/client
+
 
   tdarr_node:
     image: ghcr.io/haveagitgat/tdarr_node:latest
