@@ -119,6 +119,7 @@ services:
       - /mnt/media:/mnt/media
       - ${ROOT}/config/tdarr/server:/app/server
       - ${ROOT}/config/tdarr/client:/app/client
+    cpus: '1.0'
 
   radarr:
     image: linuxserver/radarr:latest
