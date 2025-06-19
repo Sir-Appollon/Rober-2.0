@@ -108,7 +108,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - nodeID=MyNode
-      - serverURL=http://192.168.3.39:8266
+      - serverURL=http://tdarr:8266
     ports: []
     networks:
       - tdarr-net
