@@ -25,10 +25,15 @@ import json
 import sys
 import os
 
+# Ajout du chemin pour import
+import sys
+import os
 
-# Ajout du chemin pour import addmedia
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "addmedia")))
-from add_request_handler import handle_add_request
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from addmedia.add_request_handler import handle_add_request
+from adduser.plex_invite import invite_user
+
 # Mode: "normal" or "debug"
 mode = "debug"
 
@@ -45,16 +50,20 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+
 @bot.event
 async def on_ready():
     if mode == "debug":
         print("[DEBUG - health_listener.py] Discord bot connected and ready.")
 
+
 @bot.command(name="health")
 async def run_health(ctx):
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
-            print(f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}")
+            print(
+                f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}"
+            )
         return
 
     await ctx.send("Running health check...")
@@ -77,7 +86,9 @@ async def run_health(ctx):
 async def get_last_data(ctx):
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
-            print(f"[DEBUG - lastdata] Command from unauthorized channel: {ctx.channel.id}")
+            print(
+                f"[DEBUG - lastdata] Command from unauthorized channel: {ctx.channel.id}"
+            )
         return
 
     log_file = "/mnt/data/system_monitor_log.json"
@@ -117,13 +128,23 @@ async def get_last_data(ctx):
             storage_lines = ""
             for mount, stats in storage.items():
                 size = stats["total_gb"]
-                used_pct = stats["used_pct"] if "used_pct" in stats else round((stats["used_gb"] / stats["total_gb"]) * 100, 1)
-                label = f"{mount} → {size:.2f} Go" if size < 1024 else f"{mount} → {size/1024:.2f} To"
+                used_pct = (
+                    stats["used_pct"]
+                    if "used_pct" in stats
+                    else round((stats["used_gb"] / stats["total_gb"]) * 100, 1)
+                )
+                label = (
+                    f"{mount} → {size:.2f} Go"
+                    if size < 1024
+                    else f"{mount} → {size/1024:.2f} To"
+                )
                 storage_lines += f"\n • {label}, utilisé à {used_pct}%"
 
             # Docker services
             docker = last_entry["docker_services"]
-            docker_status = " | ".join([f"{'✅' if state else '❌'} {name}" for name, state in docker.items()])
+            docker_status = " | ".join(
+                [f"{'✅' if state else '❌'} {name}" for name, state in docker.items()]
+            )
 
             # IP match
             vpn_ips = last_entry["network"].get("vpn_ip", [])
@@ -156,9 +177,39 @@ async def get_last_data(ctx):
 @bot.command(name="addMovie")
 async def add_movie(ctx, *, title=None):
     if not title:
-        await ctx.send("❗ Utilisation : `!addMovie <titre du film>`")
+        await ctx.send("❗ Usage: `!addMovie <movie title>`")
         return
-    await handle_add_request("movie", title, ctx.channel)
+
+    await ctx.send("⏳ Attempting to add the movie...")
+
+    try:
+        result = await handle_add_request("movie", title, ctx.channel, bot)
+        if result is False:
+            await ctx.send("⚠️ The function was called but failed.")
+        else:
+            await ctx.send("✅ Movie successfully added.")
+    except Exception as e:
+        await ctx.send(f"❌ Error occurred before or during the function call: {e}")
+
+
+@bot.command(name="adduser")
+async def add_user(ctx, *, email=None):
+    if not email:
+        await ctx.send("❗ Usage: `!adduser user@example.com`")
+        return
+
+    await ctx.send(f"📨 Sending Plex invite to `{email}`...")
+
+    status, response = invite_user(email)
+    if status == 201:
+        await ctx.send("✅ Invite sent successfully.")
+    elif status == 409:
+        await ctx.send("⚠️ User already invited or has access.")
+    else:
+        await ctx.send(
+            f"❌ Invite failed (status {status}). Details:\n```{response}```"
+        )
+
 
 # Start bot loop
 bot.run(TOKEN)

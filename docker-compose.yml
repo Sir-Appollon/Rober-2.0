@@ -78,6 +78,49 @@ services:
       - /dev/dri:/dev/dri
     restart: unless-stopped
 
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    restart: unless-stopped
+    ports:
+      - "8265:8265"   # Web UI
+      - "8266:8266"   # Server Port
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - serverIP=192.168.3.39 
+      - serverPort=8266
+    networks:
+      tdarr-net:
+        aliases:
+          - tdarr
+    volumes:
+      - /mnt/media:/mnt/media
+      - ${ROOT}/config/tdarr:/app/configs
+      - ${ROOT}/config/tdarr/server:/app/server
+      - ${ROOT}/config/tdarr/client:/app/client
+
+
+  tdarr_node:
+    image: ghcr.io/haveagitgat/tdarr_node:latest
+    container_name: tdarr_node
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - nodeID=MyNode
+      - serverURL=http://tdarr:8266
+    ports: []
+    networks:
+      - tdarr-net
+    volumes:
+      - /mnt/media:/mnt/media
+      - ${ROOT}/config/tdarr/server:/app/server
+      - ${ROOT}/config/tdarr/client:/app/client
+    cpus: 1.5
+
   radarr:
     image: linuxserver/radarr:latest
     container_name: radarr
@@ -152,13 +195,15 @@ services:
       - ${ROOT}/.env
     volumes:
       - ${ROOT}/scripts/core:/app
+      - ${ROOT}/config/deluge:/app/config/deluge
+      #config/deluge
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/scripts/monitor/config:/app/config
+      - ${ROOT}/scripts/monitor/repair:/app/repair
+      #      - ${ROOT}/scripts/monitor/config:/app/config
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/data:/mnt/data
       - /mnt/media:/mnt/media
       - /mnt/media/extra:/mnt/media/extra
     command: ["python3", "/app/monitor_loop.py"]
@@ -173,16 +218,25 @@ services:
       - ${ROOT}/.env
     volumes:  
       - /mnt/data:/mnt/data
-      - ${ROOT}/scripts/health:/app/scripts/health
-      - ${ROOT}/scripts/discord:/app/scripts/discord
-      - ${ROOT}/scripts/addmedia:/app/scripts/addmedia
+      - ${ROOT}/scripts/core:/app/core
+      - ${ROOT}/scripts/discord:/app/discord
+      - ${ROOT}/scripts/health:/app/health
+      - ${ROOT}/scripts/monitor:/app/monitor
+      - ${ROOT}/scripts/monitor/alerts:/app/alerts
+      - ${ROOT}/scripts/monitor/repair:/app/repair
+      - ${ROOT}/scripts/addmedia:/app/addmedia
+      - ${ROOT}/scripts/adduser:/app/adduser
+      - ${ROOT}/scripts/requirements.txt:/app/requirements.txt
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python3", "/app/discord/discord_listener.py"]
     restart: unless-stopped
     network_mode: host
 
+
 networks:
   monitoring:
+    driver: bridge
+  tdarr-net:
     driver: bridge
 
 volumes:
