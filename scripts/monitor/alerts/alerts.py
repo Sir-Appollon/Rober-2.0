@@ -91,22 +91,28 @@ def check_plex_internet_online_connectivity():
     external_access = plex.get("external_access", False)
     print(f"[DEBUG] external_access = {external_access}")
 
-    if not (external_access is True or external_access == "yes"):
-        print("[ALERT] Plex is not accessible externally.")
-        if state.get("plex_external_status") != "offline":
-            if send_discord_message:
-                send_discord_message(
-                    "[ALERT - initial] Plex appears to be offline : no connection from outside."
-                )
-            state["plex_external_status"] = "offline"
-    else:
+    # Si external_access est booléen ou string valide
+    if external_access is True or str(external_access).lower() == "yes":
         print("[OK] Plex is accessible externally.")
         if state.get("plex_external_status") == "offline":
             if send_discord_message:
                 send_discord_message("[ALERT - END] Plex is online")
             state["plex_external_status"] = "online"
 
+    else:
+        print("[ALERT] Plex is not accessible externally.")
+        # Évite les répétitions même si on reste en erreur
+        if state.get("plex_external_status") != "offline":
+            if send_discord_message:
+                # Message clair pour distinguer une vraie perte d'une erreur technique
+                if external_access in [False, "no", "unknown"]:
+                    send_discord_message("[ALERT - initial] Plex appears to be offline : no connection from outside.")
+                else:
+                    send_discord_message("[ALERT] Plex external access is offline (exception during check).")
+            state["plex_external_status"] = "offline"
+
     save_alert_state(state)
+
 
 
 def check_deluge_activity(data):
