@@ -167,20 +167,20 @@ services:
       - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
     restart: unless-stopped
 
-    bazarr:
-      image: linuxserver/bazarr:latest
-      container_name: bazarr
-      network_mode: host
-      environment:
-        - PUID=${PUID}
-        - PGID=${PGID}
-        - TZ=${TZ}
-      volumes:
-        - /etc/localtime:/etc/localtime:ro
-        - ${ROOT}/config/bazarr:/config
-        - /mnt/media/movies:/movies
-        - /mnt/media/tv:/tv
-      restart: unless-stopped
+  bazarr:
+    image: linuxserver/bazarr:latest
+    container_name: bazarr
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${ROOT}/config/bazarr:/config
+      - /mnt/media/movies:/movies
+      - /mnt/media/tv:/tv
+    restart: unless-stopped
 
 
 
