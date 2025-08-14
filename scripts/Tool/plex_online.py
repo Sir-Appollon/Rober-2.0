@@ -263,61 +263,83 @@ def resolve_duckdns_ip():
 
 def check_cert_files_and_expiry():
     """
-    Verify cert files exist; read expiration (with a robust fallback if openssl
-    is not installed inside the container).
+    Verify cert files exist; read expiration using one of:
+      1) openssl inside the container
+      2) host openssl fed by PEM read from the container
+      3) remote TLS fetch (s_client) against DOMAIN
     """
     header("Check certificate files and expiration")
 
-    # Confirm cert files exist in container
+    # Check files exist in container
     rc1, _, _ = docker_exec(["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/fullchain.pem"])
     rc2, _, _ = docker_exec(["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/privkey.pem"])
     if rc1 == 0 and rc2 == 0:
         ok(f"Found cert files under {LE_PATH} (fullchain.pem & privkey.pem).")
     else:
         warn(f"Cert files not found at {LE_PATH}. HTTPS may fail.")
-        return False
+        # Still try remote fetch as a last resort
+        return _check_expiry_via_remote()
 
-    # Check if openssl exists inside container
+    # 1) Try inside the container
     has_openssl = (docker_exec(["sh", "-lc", "command -v openssl >/dev/null 2>&1"])[0] == 0)
-
     if has_openssl:
-        # Preferred path: use container's openssl
         rc, out, err = docker_exec([
             "sh", "-lc",
             f"openssl x509 -enddate -noout -in {shlex.quote(LE_PATH)}/fullchain.pem | cut -d= -f2"
         ])
-        exp_line = out.strip() if rc == 0 else ""
-    else:
-        # Fallback: cat the PEM from container and pipe to host openssl
-        if not require("openssl"):
-            warn("No openssl in container AND host; cannot check expiration.")
-            return False
+        if rc == 0 and out.strip():
+            return _report_expiry_from_line(out.strip())
+
+    # 2) Try host openssl fed by PEM from container
+    if shutil.which("openssl") is not None:
         rc_cat, pem, err_cat = docker_exec(["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"])
-        if rc_cat != 0 or not pem:
-            warn("Could not read certificate PEM from container for host-side parsing.")
-            return False
-        rc, out, err = run("openssl x509 -enddate -noout", timeout=CURL_TIMEOUT)
-        if rc == 0:
-            # When using host openssl via stdin, we must pipe the PEM
-            # Re-run with input provided:
+        if rc_cat == 0 and pem:
             p = subprocess.run(
                 ["openssl", "x509", "-enddate", "-noout"],
                 input=pem, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-            exp_line = p.stdout.strip() if p.returncode == 0 else ""
+            if p.returncode == 0 and p.stdout.strip():
+                # p.stdout looks like "notAfter=Oct 15 01:11:25 2025 GMT"
+                line = p.stdout.strip().split("=", 1)[-1].strip()
+                return _report_expiry_from_line(line)
         else:
-            warn("Host openssl invocation failed; cannot parse expiration.")
-            return False
+            warn("Could not read certificate PEM from container for host-side parsing.")
+    else:
+        warn("Host 'openssl' not available.")
 
-    if not exp_line:
-        warn("Could not read certificate expiration with openssl.")
+    # 3) Remote TLS fetch as last resort
+    return _check_expiry_via_remote()
+
+def _check_expiry_via_remote():
+    """
+    Use remote TLS to fetch the cert and read notAfter:
+      echo | openssl s_client -connect DOMAIN:443 -servername DOMAIN | openssl x509 -noout -enddate
+    """
+    if shutil.which("openssl") is None:
+        warn("Host 'openssl' not available for remote TLS expiry check.")
         return False
 
-    # exp_line typically looks like: "Nov  5 12:00:00 2025 GMT"
+    rc, out, err = run(
+        f'echo | openssl s_client -connect {shlex.quote(DOMAIN)}:443 '
+        f'-servername {shlex.quote(DOMAIN)} 2>/dev/null | openssl x509 -noout -enddate'
+    )
+    if rc == 0 and out.strip().startswith("notAfter="):
+        line = out.strip().split("=", 1)[-1].strip()
+        return _report_expiry_from_line(line)
+    warn("Remote TLS expiry check failed.")
+    return False
+
+def _report_expiry_from_line(exp_line):
+    """
+    exp_line examples:
+      "Oct 15 01:11:25 2025 GMT"
+    Prints days left and returns True/False (warn if < WARN_DAYS, fail if expired).
+    """
+    import re
+    from datetime import datetime, timezone
     exp_norm = re.sub(r"\s{2,}", " ", exp_line)
     try:
-        exp_dt = datetime.strptime(exp_norm, "%b %d %H:%M:%S %Y %Z")
-        exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+        exp_dt = datetime.strptime(exp_norm, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         days_left = int((exp_dt - now).total_seconds() // 86400)
     except Exception as e:
@@ -333,6 +355,7 @@ def check_cert_files_and_expiry():
     else:
         ok(f"Certificate valid for {days_left} more days (expires: {exp_dt}).")
         return True
+
 
 def simulate_external_https(pub_ip):
     """
