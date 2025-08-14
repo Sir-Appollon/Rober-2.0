@@ -212,11 +212,10 @@ services:
     volumes:
       - ${ROOT}/scripts/core:/app
       - ${ROOT}/config/deluge:/app/config/deluge
-      #config/deluge
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/scripts/monitor/repair:/app/repair
-      #      - ${ROOT}/scripts/monitor/config:/app/config
+      #${ROOT}/scripts/monitor/config:/app/config
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -236,7 +235,7 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
-      - ${ROOT}/scripts/health:/app/health
+      - ${ROOT}/scripts//tool:/app/health
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/scripts/monitor/repair:/app/repair
