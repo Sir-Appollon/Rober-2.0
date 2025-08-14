@@ -17,15 +17,15 @@ ENV (defaults you can override)
   DOMAIN=plex-robert.duckdns.org
   CONF_PATH=/etc/nginx/conf.d/plex.conf
   LE_PATH=/etc/letsencrypt/live/${DOMAIN}
-  DNS_RESOLVER=1.1.1.1
+  DNS_RESOLVER=1.1.1.1                 # conservé pour compat (non utilisé)
   UPSTREAM_FALLBACK_HOST=192.168.3.39
   UPSTREAM_FALLBACK_PORT=32400
   CURL_TIMEOUT=10
-  SIMULATE_EXTERNAL=1           # 1 = test HTTPS via --resolve
+  SIMULATE_EXTERNAL=1                  # 1 = test HTTPS via --resolve
   WARN_DAYS=15
-  REPAIR_MODE=never             # never|on-fail|always (CLI overrides)
-  ALLOW_REPAIRS=                # e.g. "CERT_EXPIRY,DNS_MATCH"
-  DENY_REPAIRS=                 # e.g. "PLEX_UPSTREAM"
+  REPAIR_MODE=never                    # never|on-fail|always (CLI overrides)
+  ALLOW_REPAIRS=                       # e.g. "CERT_EXPIRY,DNS_MATCH"
+  DENY_REPAIRS=                        # e.g. "PLEX_UPSTREAM"
   REPAIR_SCRIPT=scripts/tool/repair_plex.py
 """
 
@@ -43,10 +43,15 @@ import socket
 # --------------------------- SETTINGS --------------------------- #
 CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
 PLEX_CONTAINER = os.environ.get("PLEX_CONTAINER", "plex-server")
-DOMAIN = os.environ.get("DOMAIN", "plex-robert.duckdns.org")
+
+# --- Normalisation du domaine (tolère https:// et slashs) ---
+DOMAIN_RAW = os.environ.get("DOMAIN", "plex-robert.duckdns.org")
+DOMAIN_HOST = re.sub(r"^https?://", "", DOMAIN_RAW).split("/")[0]  # ex: "plex-robert.duckdns.org"
+DOMAIN = DOMAIN_HOST
+
 CONF_PATH = os.environ.get("CONF_PATH", "/etc/nginx/conf.d/plex.conf")
-LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN}")
-DNS_RESOLVER = os.environ.get("DNS_RESOLVER", "1.1.1.1")  # conservé pour compat, non utilisé
+LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN_HOST}")
+DNS_RESOLVER = os.environ.get("DNS_RESOLVER", "1.1.1.1")  # compat, non utilisé
 UPSTREAM_FALLBACK_HOST = os.environ.get("UPSTREAM_FALLBACK_HOST", "192.168.3.39")
 UPSTREAM_FALLBACK_PORT = os.environ.get("UPSTREAM_FALLBACK_PORT", "32400")
 CURL_TIMEOUT = int(os.environ.get("CURL_TIMEOUT", "10"))
@@ -68,21 +73,30 @@ TESTS = [
 
 # --------------------------- UI helpers --------------------------- #
 def color(tag, msg):
-    codes = {"INFO":"\033[1;34m","OK":"\033[1;32m","WARN":"\033[1;33m","FAIL":"\033[1;31m","HDR":"\033[1;36m","END":"\033[0m"}
+    codes = {
+        "INFO": "\033[1;34m",
+        "OK":   "\033[1;32m",
+        "WARN": "\033[1;33m",
+        "FAIL": "\033[1;31m",
+        "HDR":  "\033[1;36m",
+        "END":  "\033[0m",
+    }
     return f"{codes.get(tag,'')}{msg}{codes['END']}"
 
-def info(m): print(color("INFO","[INFO] "), m)
-def ok(m):   print(color("OK","[ OK ] "), m)
-def warn(m): print(color("WARN","[WARN] "), m)
-def fail(m): print(color("FAIL","[FAIL] "), m)
+def info(m):   print(color("INFO","[INFO] "), m)
+def ok(m):     print(color("OK","[ OK ] "), m)
+def warn(m):   print(color("WARN","[WARN] "), m)
+def fail(m):   print(color("FAIL","[FAIL] "), m)
 def header(m): print(color("HDR", f"\n=== {m} ==="))
 
 # --------------------------- proc helpers --------------------------- #
 def run(cmd, timeout=None):
     """Run a command; returns (rc, stdout, stderr)."""
     shell = isinstance(cmd, str)
-    p = subprocess.run(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                       text=True, timeout=timeout or None)
+    p = subprocess.run(
+        cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, timeout=timeout or None
+    )
     return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
 
 def docker_exec(args, timeout=None):
@@ -98,18 +112,26 @@ def require(binname):
 
 # --------------------------- DNS/public IP helpers --------------------------- #
 def resolve_a_records_py(domain: str) -> list[str]:
-    """Resolve A records (IPv4) using Python only (no dig/nslookup needed)."""
+    """Resolve A records (IPv4) using Python only (no dig/nslookup)."""
     try:
         addrs = {ai[4][0] for ai in socket.getaddrinfo(domain, 0, family=socket.AF_UNSPEC)}
-        # Keep only IPv4 for comparison to public IPv4
+        # Ne garder qu'IPv4 pour comparer avec l'IPv4 publique
         return [a for a in addrs if a.count('.') == 3]
     except Exception:
         return []
 
 def get_public_ip():
-    """Get current public IPv4 via ifconfig.me (simple HTTP)."""
-    rc, out, _ = run(["curl", "-sS", "-4", "ifconfig.me"])
-    return out.strip() if rc == 0 else ""
+    """Get current public IPv4 with fallbacks."""
+    for endpoint in (
+        ["curl","-sS","-4","https://ifconfig.me"],
+        ["curl","-sS","-4","https://api.ipify.org"],
+        ["curl","-sS","-4","https://ipv4.icanhazip.com"],
+    ):
+        rc, out, _ = run(endpoint)
+        ip = (out or "").strip()
+        if rc == 0 and ip.count(".") == 3:
+            return ip
+    return ""
 
 # --------------------------- tests --------------------------- #
 def test_preflight(results):
@@ -271,9 +293,10 @@ def test_cert_expiry(results):
     if not exp_line and shutil.which("openssl"):
         rc, pem, _ = docker_exec(["sh","-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"])
         if rc == 0 and pem:
-            p = subprocess.run(["openssl","x509","-enddate","-noout"],
-                               input=pem, text=True,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.run(
+                ["openssl","x509","-enddate","-noout"],
+                input=pem, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
             if p.returncode == 0 and p.stdout.strip():
                 exp_line = p.stdout.strip().split("=", 1)[-1].strip()
 
