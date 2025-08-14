@@ -214,7 +214,8 @@ services:
       - ${ROOT}/config/deluge:/app/config/deluge
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/scripts/monitor/repair:/app/repair
+      - ${ROOT}/scripts/monitor/tool:/app/repair
+      #${ROOT}/scripts/monitor/repair:/app/repair
       #${ROOT}/scripts/monitor/config:/app/config
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
       - /mnt/data:/mnt/data
