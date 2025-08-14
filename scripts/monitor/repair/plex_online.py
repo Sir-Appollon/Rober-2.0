@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 plex_online.py
 Health checks for Plex + Nginx (Docker). Can optionally call repair_plex.py.
@@ -37,6 +38,7 @@ import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
+import socket
 
 # --------------------------- SETTINGS --------------------------- #
 CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
@@ -44,7 +46,7 @@ PLEX_CONTAINER = os.environ.get("PLEX_CONTAINER", "plex-server")
 DOMAIN = os.environ.get("DOMAIN", "plex-robert.duckdns.org")
 CONF_PATH = os.environ.get("CONF_PATH", "/etc/nginx/conf.d/plex.conf")
 LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN}")
-DNS_RESOLVER = os.environ.get("DNS_RESOLVER", "1.1.1.1")
+DNS_RESOLVER = os.environ.get("DNS_RESOLVER", "1.1.1.1")  # conservé pour compat, non utilisé
 UPSTREAM_FALLBACK_HOST = os.environ.get("UPSTREAM_FALLBACK_HOST", "192.168.3.39")
 UPSTREAM_FALLBACK_PORT = os.environ.get("UPSTREAM_FALLBACK_PORT", "32400")
 CURL_TIMEOUT = int(os.environ.get("CURL_TIMEOUT", "10"))
@@ -93,6 +95,21 @@ def docker_container_running(name):
 
 def require(binname):
     return shutil.which(binname) is not None
+
+# --------------------------- DNS/public IP helpers --------------------------- #
+def resolve_a_records_py(domain: str) -> list[str]:
+    """Resolve A records (IPv4) using Python only (no dig/nslookup needed)."""
+    try:
+        addrs = {ai[4][0] for ai in socket.getaddrinfo(domain, 0, family=socket.AF_UNSPEC)}
+        # Keep only IPv4 for comparison to public IPv4
+        return [a for a in addrs if a.count('.') == 3]
+    except Exception:
+        return []
+
+def get_public_ip():
+    """Get current public IPv4 via ifconfig.me (simple HTTP)."""
+    rc, out, _ = run(["curl", "-sS", "-4", "ifconfig.me"])
+    return out.strip() if rc == 0 else ""
 
 # --------------------------- tests --------------------------- #
 def test_preflight(results):
@@ -191,37 +208,35 @@ def test_upstream(results, host, port):
 
 def test_dns_match(results):
     header("DuckDNS IP vs current public IP")
-    duck_ip = ""
-    if shutil.which("dig"):
-        rc, out, _ = run(["sh","-lc", f"dig +short {shlex.quote(DOMAIN)} @{shlex.quote(DNS_RESOLVER)}"])
-        if rc == 0 and out.strip():
-            duck_ip = out.splitlines()[-1].strip()
-    else:
-        rc, out, _ = run(["nslookup", DOMAIN, DNS_RESOLVER])
-        if rc == 0:
-            for line in out.splitlines():
-                if line.strip().startswith("Address:"):
-                    duck_ip = line.split("Address:")[-1].strip()
+    # 1) Resolve A records (IPv4) for DOMAIN
+    ips = resolve_a_records_py(DOMAIN)
+    if not ips:
+        warn("DNS resolve failed (Python).")
+        results["DNS_MATCH"] = False
+        return False
 
-    if duck_ip:
-        ok(f"{DOMAIN} resolves to: {duck_ip}")
-    else:
-        fail(f"Unable to resolve {DOMAIN} via {DNS_RESOLVER}")
+    info(f"Resolved {DOMAIN} -> {', '.join(ips)}")
+    results["duckdns_ips"] = ips
 
-    rc, out, _ = run(["curl","-sS","-4","ifconfig.me"])
-    pub_ip = out.strip() if rc == 0 else ""
+    # 2) Current public IPv4 (cache if already computed)
+    pub_ip = results.get("_pub_ip") or get_public_ip()
     if pub_ip:
         ok(f"Current public IP: {pub_ip}")
+        results["_pub_ip"] = pub_ip
     else:
-        fail("Unable to fetch current public IP.")
+        warn("Unable to fetch current public IP.")
+        results["DNS_MATCH"] = False
+        return False
 
-    match = bool(duck_ip and pub_ip and duck_ip == pub_ip)
-    if match: ok("DuckDNS IP matches current public IP.")
-    else:     fail("DuckDNS mismatch or unknown.")
+    # 3) Compare
+    match = pub_ip in ips
+    if match:
+        ok(f"DuckDNS resolves to current public IP: {pub_ip}")
+    else:
+        warn(f"DuckDNS does not match current public IP ({pub_ip}); resolved={ips}")
 
     results["DNS_MATCH"] = match
-    results["_duck_ip"] = duck_ip
-    results["_pub_ip"] = pub_ip
+    results["_duck_ip"] = ips[0] if ips else ""
     return match
 
 def parse_notafter_to_days(exp_line):
