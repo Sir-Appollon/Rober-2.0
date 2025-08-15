@@ -88,43 +88,24 @@ async def run_plex_online(ctx):
             print(f"[DEBUG] Unauthorized channel: {ctx.channel.id}")
         return
 
-    await ctx.send("Running Plex online check...")
-
     try:
         if mode == "debug":
             print("[DEBUG] Launching /app/monitor/repair/repair.py --plex-online --force")
 
-        result = subprocess.run(
+        subprocess.run(
             ["python3", "/app/monitor/repair/repair.py", "--plex-online", "--force"],
             timeout=60,
             capture_output=True,
             text=True
         )
 
-        header = "✅ Success (exit 0)" if result.returncode == 0 else f"⚠️ Exit code: {result.returncode}"
-        output = ""
-        if result.stdout:
-            output += f"**stdout**:\n{result.stdout}\n"
-        if result.stderr:
-            output += f"**stderr**:\n{result.stderr}\n"
-        if not output.strip():
-            output = "_(no output)_"
-
-        async def send_chunks(text: str):
-            MAX = 1900
-            while text:
-                chunk, text = text[:MAX], text[MAX:]
-                await ctx.send(f"```log\n{chunk}\n```")
-
-        await ctx.send(header)
-        await send_chunks(output)
-
     except subprocess.TimeoutExpired:
-        await ctx.send("⏱️ Timeout: script > 60s.")
+        if mode == "debug":
+            print("[DEBUG] Timeout: script > 60s.")
     except Exception as e:
-        await ctx.send(f"❌ Execution failed: `{e}`")
         if mode == "debug":
             print(f"[DEBUG] Exception: {e}")
+
 
 
 
