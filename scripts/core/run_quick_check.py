@@ -418,7 +418,7 @@ for line in plex_msg_lines:
 # Envoi Discord (si souhaité)
 if send_discord_message:
     try:
-        send_discord_message("Quick data acquisition: done")
+      # send_discord_message("Quick data acquisition: done")
         print("[DEBUG - run_quick_check.py - DISCORD - SUCCESS] Discord message sent successfully")
     except Exception as e:
         print(f"[DEBUG - run_quick_check.py - DISCORD - FAIL] {e}")
