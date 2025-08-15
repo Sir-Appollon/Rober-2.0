@@ -239,7 +239,8 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
-      - ${ROOT}/scripts/tool:/app/health
+      - ${ROOT}/scripts/core/health:/app/health
+      - ${ROOT}/scripts/core/repair:/app/repair
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/scripts/addmedia:/app/addmedia
