@@ -240,7 +240,7 @@ services:
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/core/health:/app/health
-      - ${ROOT}/scripts/core/repair:/app/repair
+      - ${ROOT}/scripts/monitor/repair:/app/repair
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/scripts/addmedia:/app/addmedia
