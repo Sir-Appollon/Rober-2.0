@@ -97,12 +97,11 @@ async def run_plex_online(ctx):
 
         # Lance repair.py avec flags séparés, capture stdout/stderr
         result = subprocess.run(
-            ["python3", "/app/health/repair.py", "--plex-online", "--force"],
+            ["python3", "/app/core/repair/repair.py", "--plex-online", "--force"],
             timeout=60,
             capture_output=True,
             text=True
         )
-
         # Prépare l'entête selon le code retour
         header = "✅ Success (exit 0)" if result.returncode == 0 else f"⚠️ Exit code: {result.returncode}"
 
