@@ -222,6 +222,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /mnt/media:/mnt/media
       - /mnt/media/extra:/mnt/media/extra
+    dns:
+      - 1.1.1.1     # Cloudflare
+      - 8.8.8.8     # Google      
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: host
     restart: unless-stopped
