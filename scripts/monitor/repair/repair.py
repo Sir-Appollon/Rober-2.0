@@ -5,6 +5,7 @@ import json
 import subprocess
 import os
 import re
+import time
 import importlib.util
 from dotenv import load_dotenv
 
@@ -13,8 +14,10 @@ CONFIG_PATH = "/app/config/deluge/core.conf"
 dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.env"))
 load_dotenv(dotenv_path)
 
-send_discord_message = None
+# Cooldown en secondes entre deux tests Plex (pour éviter les boucles)
+PLEX_TEST_COOLDOWN = int(os.getenv("PLEX_TEST_COOLDOWN", "300"))  # 5 min par défaut
 
+send_discord_message = None
 
 # ===== Discord setup =====
 def setup_discord():
@@ -34,7 +37,6 @@ def setup_discord():
             except Exception:
                 pass
 
-
 # ===== Helpers =====
 def load_alert_state():
     if os.path.exists(ALERT_STATE_FILE):
@@ -45,9 +47,15 @@ def load_alert_state():
             return {}
     return {}
 
+def save_alert_state(state):
+    try:
+        with open(ALERT_STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception:
+        pass
 
 def run_and_send(cmd, title="Task"):
-    """Run a script, send result to Discord (logs truncated if too long)."""
+    """Run a script, send result to Discord (logs truncated)."""
     res = subprocess.run(cmd, capture_output=True, text=True)
     output = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
     if send_discord_message:
@@ -57,10 +65,8 @@ def run_and_send(cmd, title="Task"):
             send_discord_message(f"[ERROR] {title} failed (exit={res.returncode}).\n```log\n{output[-1800:]}\n```")
     return res.returncode
 
-
 # ===== Deluge repair =====
 def get_vpn_internal_ip():
-    print("[INFO] Retrieving internal VPN IP (tun0)...")
     result = subprocess.run(
         ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
         capture_output=True, text=True
@@ -69,7 +75,6 @@ def get_vpn_internal_ip():
     if match:
         return match.group(1)
     raise RuntimeError("No IP detected on interface tun0")
-
 
 def extract_interface_ips_from_config():
     with open(CONFIG_PATH, "r") as f:
@@ -81,7 +86,6 @@ def extract_interface_ips_from_config():
         "outgoing_interface": outgoing.group(1) if outgoing else None,
     }
 
-
 def verify_interface_consistency():
     vpn_ip = get_vpn_internal_ip()
     config_ips = extract_interface_ips_from_config()
@@ -91,12 +95,10 @@ def verify_interface_consistency():
     )
     return consistent, vpn_ip, config_ips
 
-
 def launch_repair_deluge_ip():
     if send_discord_message:
         send_discord_message("[ACTION] Starting Deluge IP repair…")
     return run_and_send(["python3", "/app/repair/ip_adress_up.py"], "Deluge IP repair")
-
 
 def handle_deluge_verification():
     state = load_alert_state()
@@ -114,21 +116,46 @@ def handle_deluge_verification():
     else:
         print("[INFO] Deluge IPs consistent, no repair needed.")
 
+# ===== Plex ONLINE test — seulement si OFFLINE (et cooldown respecté) =====
+def should_run_plex_online_test():
+    state = load_alert_state()
+    status = state.get("plex_external_status")  # "online" | "offline" | None
+    if status != "offline":
+        # Plex n’est pas down -> on ne teste pas
+        return False
 
-# ===== Plex ONLINE test (no repair) =====
+    # Cooldown anti-spam
+    now = time.time()
+    last = state.get("plex_last_test_ts", 0)
+    if (now - last) < PLEX_TEST_COOLDOWN:
+        return False
+
+    return True
+
 def launch_plex_online_test():
     if send_discord_message:
         send_discord_message("[ACTION] Running Plex online test…")
-    return run_and_send(["python3", "/app/repair/plex_online.py"], "Plex online test")
+    rc = run_and_send(["python3", "/app/repair/plex_online.py"], "Plex online test")
 
+    # Mémorise l’heure du dernier test pour le cooldown
+    state = load_alert_state()
+    state["plex_last_test_ts"] = time.time()
+    save_alert_state(state)
+    return rc
 
 # ===== Main =====
 def main():
     print("[DEBUG] repair.py is running")
     setup_discord()
-    handle_deluge_verification()   # Deluge IP check & repair if needed
-    launch_plex_online_test()      # Plex: just run test, no repair
 
+    # 1) Deluge : vérifier/ réparer si nécessaire
+    handle_deluge_verification()
+
+    # 2) Plex : NE TESTER QUE si l’état courant est OFFLINE (et cooldown ok)
+    if should_run_plex_online_test():
+        launch_plex_online_test()
+    else:
+        print("[INFO] Plex online test skipped (status not offline or cooldown).")
 
 if __name__ == "__main__":
     main()
