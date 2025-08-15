@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+repair.py — Orchestrateur de santé/réparation
+
+- Charge .env de façon robuste
+- Peut vérifier/réparer Deluge (interfaces VPN)
+- Peut lancer le test Plex externe (plex_online.py)
+- Écrit/relit /mnt/data/alert_state.json pour l'état (offline/online) + cooldown
+
+Nouveauté:
+- Auto-déclenchement du test Plex si alert_state.json indique 'offline'
+  même SANS --plex-online (optionnellement avec force si souhaité).
+"""
 
 import json
 import subprocess
@@ -100,7 +112,11 @@ load_env_robust()
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"      # côté Docker (monté)
 CONFIG_PATH = "/app/config/deluge/core.conf"         # côté Docker
 
+# Cooldown (en secondes) entre deux tests Plex (évite les boucles)
 PLEX_TEST_COOLDOWN = int(os.environ.get("PLEX_TEST_COOLDOWN", "300"))
+
+# Si tu veux forcer l'auto-test même en cooldown (sans --force), mets à "1"
+AUTO_PLEX_FORCE = os.environ.get("AUTO_PLEX_FORCE", "0") == "1"
 
 BASE_DIR = Path(__file__).resolve().parent
 send_discord_message = None
@@ -138,20 +154,20 @@ def _first_existing(paths):
 def resolve_plex_online_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "plex_online.py",                       # voisin de repair.py
+        BASE_DIR / "plex_online.py",                         # voisin de repair.py
         (root / "scripts/tool/plex_online.py") if root else None,   # host
-        Path("/app/tool/plex_online.py"),                  # docker si bind ajouté
-        Path("/app/monitor/repair/plex_online.py"),        # docker voisin
-        Path("/app/repair/plex_online.py"),                # docker core/repair
+        Path("/app/tool/plex_online.py"),                    # docker si bind ajouté
+        Path("/app/monitor/repair/plex_online.py"),          # docker voisin
+        Path("/app/repair/plex_online.py"),                  # docker core/repair
     ]
     return _first_existing([p for p in candidates if p])
 
 def resolve_deluge_ip_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "ip_adress_up.py",                      # voisin
+        BASE_DIR / "ip_adress_up.py",                        # voisin
         (root / "scripts/core/repair/ip_adress_up.py") if root else None,  # host
-        Path("/app/repair/ip_adress_up.py"),               # docker bind officiel
+        Path("/app/repair/ip_adress_up.py"),                 # docker bind officiel
     ]
     return _first_existing([p for p in candidates if p])
 
@@ -338,12 +354,14 @@ def main():
                         help="Lancer tous les tests et réparations disponibles")
     args = parser.parse_args()
 
+    # Mode batch "tout"
     if args.all:
         handle_deluge_verification()
         if should_run_plex_online_test(force=True):
             launch_plex_online_test()
         return
 
+    # Exécutions ciblées via flags
     if args.deluge_verify:
         handle_deluge_verification()
 
@@ -355,6 +373,20 @@ def main():
             launch_plex_online_test()
         else:
             print("[INFO] Plex online test skipped (status not offline ou cooldown).")
+
+    # --- AUTO: lancer plex_online si le JSON indique un problème (sans --plex-online) ---
+    # Ce bloc s'exécute même si aucun flag n'a été passé.
+    # Il déclenche le test Plex si l'état est 'offline'. Par défaut, il respecte le cooldown.
+    # Pour forcer en auto (ignorer cooldown), définir AUTO_PLEX_FORCE=1 dans l'env.
+    ran_anything = any([args.all, args.deluge_verify, args.deluge_repair, args.plex_online])
+    if not ran_anything:
+        state = load_alert_state()
+        if state.get("plex_external_status") == "offline":
+            print("[AUTO] Plex est marqué 'offline' dans alert_state.json → lancement du test Plex")
+            if should_run_plex_online_test(force=AUTO_PLEX_FORCE):
+                launch_plex_online_test()
+            else:
+                print("[AUTO] Conditions non réunies (cooldown ou état) → test non lancé")
 
 if __name__ == "__main__":
     main()
