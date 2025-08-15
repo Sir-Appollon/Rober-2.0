@@ -59,7 +59,7 @@ SIMULATE_EXTERNAL = os.environ.get("SIMULATE_EXTERNAL", "1") == "1"
 WARN_DAYS = int(os.environ.get("WARN_DAYS", "15"))
 # --------------------------------------------------------------- #
 
-# Ordered list for reporting/filters
+# Ordered list for reporting/repairs
 TESTS = [
     "PREFLIGHT",
     "CONF_PRESENT",
@@ -111,14 +111,50 @@ def require(binname):
     return shutil.which(binname) is not None
 
 # --------------------------- DNS/public IP helpers --------------------------- #
-def resolve_a_records_py(domain: str) -> list[str]:
-    """Resolve A records (IPv4) using Python only (no dig/nslookup)."""
+def _have_cmd(cmd: str) -> bool:
+    return shutil.which(cmd) is not None
+
+def _dig_a(domain: str, server: str, timeout=1.5, tries=1):
     try:
-        addrs = {ai[4][0] for ai in socket.getaddrinfo(domain, 0, family=socket.AF_UNSPEC)}
-        # Ne garder qu'IPv4 pour comparer avec l'IPv4 publique
-        return [a for a in addrs if a.count('.') == 3]
+        rc, out, _ = run(
+            ["dig", "+short", f"+time={int(timeout)}", f"+tries={int(tries)}", "A", domain, f"@{server}"],
+            timeout=timeout + 0.5
+        )
+        if rc == 0 and out.strip():
+            ips = [l.strip() for l in out.splitlines() if re.match(r"^\d+\.\d+\.\d+\.\d+$", l.strip())]
+            return ips
     except Exception:
-        return []
+        pass
+    return []
+
+def resolve_a_multi(domain: str, resolvers=None, timeout=1.5, tries=1):
+    """
+    Résout les A-records IPv4 via plusieurs résolveurs publics (+fallback système).
+    Retourne (answers_set, details_log)
+    """
+    if resolvers is None:
+        resolvers = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
+
+    answers = set()
+    logs = []
+
+    if _have_cmd("dig"):
+        for s in resolvers:
+            ips = _dig_a(domain, s, timeout=timeout, tries=tries)
+            logs.append(f"[DNS] @{s} -> {ips if ips else '∅'}")
+            answers.update(ips)
+
+    if not answers:
+        # Fallback système
+        try:
+            ai = socket.getaddrinfo(domain, 0, family=socket.AF_INET, type=socket.SOCK_STREAM)
+            ips = sorted({t[4][0] for t in ai})
+            logs.append(f"[DNS] system -> {ips if ips else '∅'}")
+            answers.update(ips)
+        except Exception as e:
+            logs.append(f"[DNS] system -> error: {e}")
+
+    return answers, logs
 
 def get_public_ip():
     """Get current public IPv4 with fallbacks."""
@@ -230,17 +266,20 @@ def test_upstream(results, host, port):
 
 def test_dns_match(results):
     header("DuckDNS IP vs current public IP")
-    # 1) Resolve A records (IPv4) for DOMAIN
-    ips = resolve_a_records_py(DOMAIN)
+    # 1) Resolve via multiple public resolvers + system fallback (IPv4 only)
+    ips, dns_logs = resolve_a_multi(DOMAIN)
+    for line in dns_logs:
+        info(line)
+
     if not ips:
-        warn("DNS resolve failed (Python).")
+        warn("No A records returned by any resolver.")
         results["DNS_MATCH"] = False
         return False
 
-    info(f"Resolved {DOMAIN} -> {', '.join(ips)}")
-    results["duckdns_ips"] = ips
+    info(f"Resolved {DOMAIN} -> {sorted(ips)}")
+    results["duckdns_ips"] = sorted(ips)
 
-    # 2) Current public IPv4 (cache if already computed)
+    # 2) Current public IPv4
     pub_ip = results.get("_pub_ip") or get_public_ip()
     if pub_ip:
         ok(f"Current public IP: {pub_ip}")
@@ -255,10 +294,10 @@ def test_dns_match(results):
     if match:
         ok(f"DuckDNS resolves to current public IP: {pub_ip}")
     else:
-        warn(f"DuckDNS does not match current public IP ({pub_ip}); resolved={ips}")
+        warn(f"DuckDNS does not match current public IP ({pub_ip}); resolved={sorted(ips)}")
 
     results["DNS_MATCH"] = match
-    results["_duck_ip"] = ips[0] if ips else ""
+    results["_duck_ip"] = sorted(ips)[0] if ips else ""
     return match
 
 def parse_notafter_to_days(exp_line):
@@ -401,61 +440,76 @@ def _call_repair(script_path, tests, apply_flag):
         cmd.append("--apply")
     return run(cmd)
 
+# --------------------------- overall decision --------------------------- #
+def _compute_failures(results):
+    """
+    Echec DNS_MATCH n'est bloquant que si HTTPS_EXTERNAL est aussi False.
+    Retourne (fail_list, overall_ok)
+    """
+    failures = []
+    for k in TESTS:
+        if k == "DNS_MATCH":
+            if results.get("DNS_MATCH") is False and not results.get("HTTPS_EXTERNAL", False):
+                failures.append(k)
+        else:
+            if results.get(k) is False:
+                failures.append(k)
+    overall_ok = (len(failures) == 0)
+    return failures, overall_ok
+
 # --------------------------- main --------------------------- #
 def main():
     args = _parse_args()
 
     results = {}
-    overall_ok = True
 
-    # Run checks
-    overall_ok &= test_preflight(results)
-    overall_ok &= test_conf_present(results)
-    overall_ok &= test_nginx_t(results)
+    # Run checks (ordre important: DNS avant HTTPS, car HTTPS peut “tolérer” un DNS en décalage)
+    test_preflight(results)
+    test_conf_present(results)
+    test_nginx_t(results)
     host, port = extract_upstream()
     results["UPSTREAM_FROM_CONF"] = True
-    overall_ok &= test_upstream(results, host, port)
-    overall_ok &= test_dns_match(results)
-    overall_ok &= test_cert_expiry(results)
-    overall_ok &= test_https_external(results)
+    test_upstream(results, host, port)
+    test_dns_match(results)
+    test_cert_expiry(results)
+    test_https_external(results)
+
+    # Décision finale (DNS mismatch toléré si HTTPS ok)
+    failing, overall_ok = _compute_failures(results)
 
     if args.json:
         print(json.dumps(results, indent=2, default=str))
 
-    failing = [k for k in TESTS if results.get(k) is False]
+    if overall_ok:
+        ok("All critical checks passed.")
+    else:
+        fail("One or more checks failed.")
+        info("Tip: use --repair on-fail --apply to attempt fixes.")
 
-    # Decide on repairs
+    # Sélection pour réparations
     if args.repair == "never":
-        if overall_ok:
-            ok("All critical checks passed.")
-            sys.exit(0)
-        else:
-            fail("One or more checks failed.")
-            info("Tip: use --repair on-fail --apply to attempt fixes.")
-            sys.exit(2)
+        sys.exit(0 if overall_ok else 2)
 
     if args.repair == "on-fail":
-        if overall_ok:
-            ok("All critical checks passed. No repairs executed (--repair on-fail).")
-            sys.exit(0)
         to_repair = _filter_tests_for_repair(failing, args.allow_repairs, args.deny_repairs)
 
     elif args.repair == "always":
-        # All repairable tests (including ones that passed), filtered
+        # Tous ceux réparables (même s'ils sont passés), filtrés
         repairable = {"CONF_PRESENT","NGINX_TEST","PLEX_UPSTREAM","DNS_MATCH","CERT_EXPIRY","HTTPS_EXTERNAL"}
         to_repair = _filter_tests_for_repair(
             [t for t in TESTS if t in repairable],
             args.allow_repairs, args.deny_repairs
         )
 
-    # Call repair script
-    rc, out, err = _call_repair(args.repair_script, to_repair, args.apply)
-    if out: print(out)
-    if err: print(err, file=sys.stderr)
-    if rc != 0:
-        warn(f"repair_plex.py exited with code {rc}")
+    # Appel réparation si demandé
+    if args.repair in {"on-fail", "always"}:
+        rc, out, err = _call_repair(args.repair_script, to_repair, args.apply)
+        if out: print(out)
+        if err: print(err, file=sys.stderr)
+        if rc != 0:
+            warn(f"repair_plex.py exited with code {rc}")
 
-    # Exit with success only if checks passed
+    # Code de sortie final
     sys.exit(0 if overall_ok else 2)
 
 if __name__ == "__main__":
