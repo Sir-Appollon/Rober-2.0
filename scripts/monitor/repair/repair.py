@@ -18,7 +18,6 @@ def _simple_parse_env(path: Path) -> dict:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            # format KEY=VALUE (VALUE peut être "quoted" ou non)
             m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
             if not m:
                 continue
@@ -42,50 +41,36 @@ def _try_load_with_dotenv(dotenv_path: Path) -> bool:
 
 def _set_env_from_dict(d: dict):
     for k, v in d.items():
-        # ne pas écraser des variables déjà définies dans l'env
         if k not in os.environ:
             os.environ[k] = v
 
-def _search_upwards_for_env(start: Path, max_levels: int = 8) -> Path | None:
+def _search_upwards_for_env(start: Path, max_levels: int = 8):
     cur = start.resolve()
     for _ in range(max_levels):
-        candidate = cur / ".env"
-        if candidate.is_file():
-            return candidate
+        cand = cur / ".env"
+        if cand.is_file():
+            return cand
         if cur.parent == cur:
             break
         cur = cur.parent
     return None
 
 def load_env_robust():
-    """
-    Ordre de recherche:
-    1) ${ROOT}/.env si ROOT défini
-    2) ../../../.env relatif à ce fichier
-    3) .env en remontant depuis ce fichier
-    4) .env en remontant depuis le cwd
-    """
     base_dir = Path(__file__).resolve().parent
-    candidates: list[Path] = []
+    candidates = []
 
     root = os.environ.get("ROOT")
     if root:
         candidates.append(Path(root) / ".env")
 
-    # équivalent de l'ancien "../../../.env"
     candidates.append((base_dir / Path("../../../.env")).resolve())
 
-    # remonte depuis le fichier
-    found_from_file = _search_upwards_for_env(base_dir, max_levels=10)
-    if found_from_file:
-        candidates.append(found_from_file)
+    f1 = _search_upwards_for_env(base_dir, 10)
+    if f1: candidates.append(f1)
 
-    # remonte depuis le cwd
-    found_from_cwd = _search_upwards_for_env(Path.cwd(), max_levels=10)
-    if found_from_cwd:
-        candidates.append(found_from_cwd)
+    f2 = _search_upwards_for_env(Path.cwd(), 10)
+    if f2: candidates.append(f2)
 
-    # dédoublonne en gardant l'ordre
     uniq = []
     seen = set()
     for p in candidates:
@@ -99,7 +84,6 @@ def load_env_robust():
 
     for dotenv_path in uniq:
         if dotenv_path and dotenv_path.is_file():
-            # Tente python-dotenv si dispo ; sinon parse simple
             if _try_load_with_dotenv(dotenv_path):
                 print(f"[INFO] .env chargé (python-dotenv): {dotenv_path}")
                 return
@@ -110,45 +94,91 @@ def load_env_robust():
                 return
     print("[INFO] Aucun .env trouvé/chargé (ou fichier vide).")
 
-# Charger l'environnement le plus tôt possible
 load_env_robust()
 
 # ---------- Constantes & chemins ----------
-ALERT_STATE_FILE = "/mnt/data/alert_state.json"
-CONFIG_PATH = "/app/config/deluge/core.conf"
+ALERT_STATE_FILE = "/mnt/data/alert_state.json"      # côté Docker (monté)
+CONFIG_PATH = "/app/config/deluge/core.conf"         # côté Docker
 
-# Cooldown en secondes entre deux tests Plex (pour éviter les boucles)
-PLEX_TEST_COOLDOWN = int(os.getenv("PLEX_TEST_COOLDOWN", "300"))  # 5 min par défaut
+PLEX_TEST_COOLDOWN = int(os.environ.get("PLEX_TEST_COOLDOWN", "300"))
 
-# Dérive tous les chemins depuis ce fichier
 BASE_DIR = Path(__file__).resolve().parent
-PLEX_ONLINE_SCRIPT = (BASE_DIR / "plex_online.py").as_posix()
-DELUGE_IP_SCRIPT = (BASE_DIR / "ip_adress_up.py").as_posix()
-
 send_discord_message = None
+
+# ---------- Résolution des chemins de scripts appelés ----------
+def _project_root_guess() -> Path | None:
+    """Devine la racine du dépôt (si ROOT non défini)."""
+    if os.environ.get("ROOT"):
+        return Path(os.environ["ROOT"]).resolve()
+    # remonter jusqu'à trouver un dossier 'scripts'
+    cur = BASE_DIR
+    for _ in range(8):
+        if (cur / "scripts").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    # essai depuis cwd
+    cur = Path.cwd().resolve()
+    for _ in range(8):
+        if (cur / "scripts").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+def _first_existing(paths):
+    for p in paths:
+        pp = Path(p)
+        if pp.is_file():
+            return pp.resolve()
+    return None
+
+def resolve_plex_online_script() -> Path | None:
+    root = _project_root_guess()
+    candidates = [
+        BASE_DIR / "plex_online.py",                       # voisin de repair.py
+        (root / "scripts/tool/plex_online.py") if root else None,   # host
+        Path("/app/tool/plex_online.py"),                  # docker si bind ajouté
+        Path("/app/monitor/repair/plex_online.py"),        # docker voisin
+        Path("/app/repair/plex_online.py"),                # docker core/repair
+    ]
+    return _first_existing([p for p in candidates if p])
+
+def resolve_deluge_ip_script() -> Path | None:
+    root = _project_root_guess()
+    candidates = [
+        BASE_DIR / "ip_adress_up.py",                      # voisin
+        (root / "scripts/core/repair/ip_adress_up.py") if root else None,  # host
+        Path("/app/repair/ip_adress_up.py"),               # docker bind officiel
+    ]
+    return _first_existing([p for p in candidates if p])
 
 # ---------- Discord setup ----------
 def setup_discord():
-    """Essaie de charger send_discord_message depuis différents chemins probables."""
+    """Charge send_discord_message si dispo."""
     global send_discord_message
+    root = _project_root_guess()
     candidates = [
-        (BASE_DIR / "discord" / "discord_notify.py"),
-        (BASE_DIR.parent / "discord" / "discord_notify.py"),
-        Path("/app/discord/discord_notify.py"),  # montage docker: - ${ROOT}/scripts/discord:/app/discord
+        BASE_DIR / "discord" / "discord_notify.py",
+        BASE_DIR.parent / "discord" / "discord_notify.py",
+        (root / "scripts/discord/discord_notify.py") if root else None,  # host
+        Path("/app/discord/discord_notify.py"),                          # docker
     ]
-    for discord_path in candidates:
-        if discord_path.is_file():
+    for p in [c for c in candidates if c]:
+        if p.is_file():
             try:
-                spec = importlib.util.spec_from_file_location("discord_notify", discord_path.as_posix())
-                discord_notify = importlib.util.module_from_spec(spec)
+                spec = importlib.util.spec_from_file_location("discord_notify", p.as_posix())
+                mod = importlib.util.module_from_spec(spec)
                 assert spec and spec.loader
-                spec.loader.exec_module(discord_notify)  # type: ignore
-                send_discord_message = getattr(discord_notify, "send_discord_message", None)
+                spec.loader.exec_module(mod)  # type: ignore
+                send_discord_message = getattr(mod, "send_discord_message", None)
                 if send_discord_message:
-                    print(f"[INFO] Discord notify chargé depuis: {discord_path}")
+                    print(f"[INFO] Discord notify chargé depuis: {p}")
                     return
             except Exception as e:
-                print(f"[WARN] Échec chargement Discord notify: {discord_path} -> {e}")
+                print(f"[WARN] Échec chargement Discord notify: {p} -> {e}")
     print("[INFO] Aucun module Discord trouvé, logs seulement en console.")
 
 # ---------- Helpers ----------
@@ -168,11 +198,11 @@ def save_alert_state(state):
     except Exception:
         pass
 
-def run_and_send(cmd, title="Task"):
-    """Exécute une commande, miroite les logs en console et envoie sur Discord si dispo."""
-    print(f"[RUN] {title}: {' '.join(cmd)}")
+def run_and_send(cmd, title="Task", cwd: Path | None = None):
+    """Exécute une commande, fixe le cwd vers le script cible, log console + Discord."""
+    print(f"[RUN] {title}: {' '.join(cmd)} (cwd={cwd or Path.cwd()})")
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None)
     except FileNotFoundError as e:
         msg = f"[ERROR] {title} introuvable: {e}"
         print(msg)
@@ -232,9 +262,13 @@ def verify_interface_consistency():
     return consistent, vpn_ip, config_ips
 
 def launch_repair_deluge_ip():
+    script = resolve_deluge_ip_script()
+    if not script:
+        print("[ERROR] Deluge IP repair script introuvable.")
+        return 127
     if send_discord_message:
         send_discord_message("[ACTION] Starting Deluge IP repair…")
-    return run_and_send(["python3", DELUGE_IP_SCRIPT], "Deluge IP repair")
+    return run_and_send(["python3", script.as_posix()], "Deluge IP repair", cwd=script.parent)
 
 def handle_deluge_verification():
     state = load_alert_state()
@@ -273,9 +307,14 @@ def should_run_plex_online_test(force=False):
     return True
 
 def launch_plex_online_test():
+    script = resolve_plex_online_script()
+    if not script:
+        print("[ERROR] plex_online.py introuvable dans les chemins connus. " +
+              "Ajoute le bind '- ${ROOT}/scripts/tool:/app/tool' OU place le script à côté de repair.py.")
+        return 127
     if send_discord_message:
         send_discord_message("[ACTION] Running Plex online test…")
-    rc = run_and_send(["python3", PLEX_ONLINE_SCRIPT], "Plex online test")
+    rc = run_and_send(["python3", script.as_posix()], "Plex online test", cwd=script.parent)
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
     save_alert_state(state)
