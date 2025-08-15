@@ -214,7 +214,7 @@ services:
       - ${ROOT}/config/deluge:/app/config/deluge
       - ${ROOT}/scripts/discord:/app/discord
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/scripts/monitor/tool:/app/repair
+      - ${ROOT}/scripts/monitor/repair:/app/repair
       #${ROOT}/scripts/monitor/repair:/app/repair
       #${ROOT}/scripts/monitor/config:/app/config
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
@@ -239,7 +239,7 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
-      - ${ROOT}/scripts/core/health:/app/health
+#      - ${ROOT}/scripts/core/health:/app/health
       - ${ROOT}/scripts/monitor/repair:/app/repair
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
