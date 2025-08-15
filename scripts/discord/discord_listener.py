@@ -86,32 +86,52 @@ async def run_plex_online(ctx):
     # Vérifie si l'ID du canal est autorisé
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
-            print(
-                f"[DEBUG - plex_online_listener.py] Command from unauthorized channel: {ctx.channel.id}"
-            )
+            print(f"[DEBUG - plex_online_listener.py] Command from unauthorized channel: {ctx.channel.id}")
         return
 
-    # Message Discord indiquant le début du test
     await ctx.send("Running Plex online check...")
 
     try:
         if mode == "debug":
-            print("[DEBUG - plex_online_listener.py] Launching plex_online.py via subprocess.")
+            print("[DEBUG - plex_online_listener.py] Launching repair.py --plex-online --force via subprocess.")
 
-        # Appelle le script Plex avec un timeout de 60 secondes
-        subprocess.run(
-            ["python3", "/app/health/repair.py", "--plex-online"],
+        # Lance repair.py avec flags séparés, capture stdout/stderr
+        result = subprocess.run(
+            ["python3", "/app/health/repair.py", "--plex-online", "--force"],
             timeout=60,
             capture_output=True,
             text=True
         )
-        # Message de confirmation
-        await ctx.send("Plex online check executed.")
 
+        # Prépare l'entête selon le code retour
+        header = "✅ Success (exit 0)" if result.returncode == 0 else f"⚠️ Exit code: {result.returncode}"
+
+        # Concatène stdout/stderr
+        output = ""
+        if result.stdout:
+            output += f"**stdout**:\n{result.stdout}\n"
+        if result.stderr:
+            output += f"**stderr**:\n{result.stderr}\n"
+        if not output.strip():
+            output = "_(no output)_"
+
+        # Envoie avec découpage (limite Discord ~2000 chars)
+        async def send_chunks(text: str, prefix: str = ""):
+            MAX = 1900
+            while text:
+                chunk, text = text[:MAX], text[MAX:]
+                await ctx.send(f"{prefix}{chunk}")
+
+        await ctx.send(header)
+        await send_chunks(f"```log\n{output}\n```")
+
+    except subprocess.TimeoutExpired:
+        await ctx.send("⏱️ Timeout: repair.py a mis plus de 60s.")
     except Exception as e:
-        await ctx.send(f"Execution failed: {e}")
+        await ctx.send(f"❌ Execution failed: `{e}`")
         if mode == "debug":
             print(f"[DEBUG - plex_online_listener.py] Exception: {e}")
+
 
 
 @bot.command(name="lastdata")
