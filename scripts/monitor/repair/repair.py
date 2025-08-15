@@ -7,6 +7,7 @@ import os
 import re
 import time
 import importlib.util
+import argparse
 from dotenv import load_dotenv
 
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
@@ -116,28 +117,24 @@ def handle_deluge_verification():
     else:
         print("[INFO] Deluge IPs consistent, no repair needed.")
 
-# ===== Plex ONLINE test — seulement si OFFLINE (et cooldown respecté) =====
-def should_run_plex_online_test():
+# ===== Plex ONLINE test =====
+def should_run_plex_online_test(force=False):
+    if force:
+        return True
     state = load_alert_state()
     status = state.get("plex_external_status")  # "online" | "offline" | None
     if status != "offline":
-        # Plex n’est pas down -> on ne teste pas
         return False
-
-    # Cooldown anti-spam
     now = time.time()
     last = state.get("plex_last_test_ts", 0)
     if (now - last) < PLEX_TEST_COOLDOWN:
         return False
-
     return True
 
 def launch_plex_online_test():
     if send_discord_message:
         send_discord_message("[ACTION] Running Plex online test…")
     rc = run_and_send(["python3", "/app/repair/plex_online.py"], "Plex online test")
-
-    # Mémorise l’heure du dernier test pour le cooldown
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
     save_alert_state(state)
@@ -148,14 +145,38 @@ def main():
     print("[DEBUG] repair.py is running")
     setup_discord()
 
-    # 1) Deluge : vérifier/ réparer si nécessaire
-    handle_deluge_verification()
+    # === Parse des arguments ===
+    parser = argparse.ArgumentParser(description="Health/repair orchestrator")
+    parser.add_argument("--deluge-verify", action="store_true",
+                        help="Vérifier/réparer Deluge si nécessaire")
+    parser.add_argument("--deluge-repair", action="store_true",
+                        help="Forcer la réparation IP de Deluge")
+    parser.add_argument("--plex-online", action="store_true",
+                        help="Lancer le test Plex online")
+    parser.add_argument("--force", action="store_true",
+                        help="Ignorer les conditions et cooldowns (utilisé avec --plex-online)")
+    parser.add_argument("--all", action="store_true",
+                        help="Lancer tous les tests et réparations disponibles")
+    args = parser.parse_args()
 
-    # 2) Plex : NE TESTER QUE si l’état courant est OFFLINE (et cooldown ok)
-    if should_run_plex_online_test():
-        launch_plex_online_test()
-    else:
-        print("[INFO] Plex online test skipped (status not offline or cooldown).")
+    # === Exécution selon flags ===
+    if args.all:
+        handle_deluge_verification()
+        if should_run_plex_online_test(force=True):
+            launch_plex_online_test()
+        return
+
+    if args.deluge_verify:
+        handle_deluge_verification()
+
+    if args.deluge_repair:
+        launch_repair_deluge_ip()
+
+    if args.plex_online:
+        if should_run_plex_online_test(force=args.force):
+            launch_plex_online_test()
+        else:
+            print("[INFO] Plex online test skipped (status not offline or cooldown).")
 
 if __name__ == "__main__":
     main()

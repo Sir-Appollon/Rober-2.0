@@ -242,7 +242,6 @@ services:
       - ${ROOT}/scripts//tool:/app/health
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/scripts/monitor/repair:/app/repair
       - ${ROOT}/scripts/addmedia:/app/addmedia
       - ${ROOT}/scripts/adduser:/app/adduser
       - ${ROOT}/scripts/requirements.txt:/app/requirements.txt

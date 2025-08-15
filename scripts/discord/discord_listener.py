@@ -57,29 +57,61 @@ async def on_ready():
         print("[DEBUG - health_listener.py] Discord bot connected and ready.")
 
 
-@bot.command(name="health")
-async def run_health(ctx):
+# @bot.command(name="health")
+# async def run_health(ctx):
+#     if ctx.channel.id != CHANNEL_ID:
+#         if mode == "debug":
+#             print(
+#                 f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}"
+#             )
+#         return
+#
+#     await ctx.send("Running health check...")
+#
+#     try:
+#         if mode == "debug":
+#             print("[DEBUG - health_listener.py] Launching Health.py via subprocess.")
+#
+#         subprocess.run(["python3", "/app/scripts/health/Health.py"], timeout=60)
+#
+#         await ctx.send("Health check executed.")
+#
+#     except Exception as e:
+#         await ctx.send(f"Execution failed: {e}")
+#         if mode == "debug":
+#             print(f"[DEBUG - health_listener.py] Exception: {e}")
+
+@bot.command(name="plex_online")
+async def run_plex_online(ctx):
+    # Vérifie si l'ID du canal est autorisé
     if ctx.channel.id != CHANNEL_ID:
         if mode == "debug":
             print(
-                f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}"
+                f"[DEBUG - plex_online_listener.py] Command from unauthorized channel: {ctx.channel.id}"
             )
         return
 
-    await ctx.send("Running health check...")
+    # Message Discord indiquant le début du test
+    await ctx.send("Running Plex online check...")
 
     try:
         if mode == "debug":
-            print("[DEBUG - health_listener.py] Launching Health.py via subprocess.")
+            print("[DEBUG - plex_online_listener.py] Launching plex_online.py via subprocess.")
 
-        subprocess.run(["python3", "/app/scripts/health/Health.py"], timeout=60)
-
-        await ctx.send("Health check executed.")
+        # Appelle le script Plex avec un timeout de 60 secondes
+        subprocess.run(
+            ["python3", "/app/health/repair.py", "--plex-online"],
+            timeout=60,
+            capture_output=True,
+            text=True
+        )
+        # Message de confirmation
+        await ctx.send("Plex online check executed.")
 
     except Exception as e:
         await ctx.send(f"Execution failed: {e}")
         if mode == "debug":
-            print(f"[DEBUG - health_listener.py] Exception: {e}")
+            print(f"[DEBUG - plex_online_listener.py] Exception: {e}")
 
 
 @bot.command(name="lastdata")
