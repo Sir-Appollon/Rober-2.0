@@ -1,31 +1,30 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import json
-import subprocess
-import time
 import os
 import importlib.util
+import time
 
 LOG_FILE = "/mnt/data/system_monitor_log.json"
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
-PLEX_SERVICE_NAME = "plex-server"
 
-# Load Discord module
+# ====== PARAMÈTRES (anti-flap) ======
+LOCAL_FAILS_FOR_ALERT = int(os.getenv("LOCAL_FAILS_FOR_ALERT", "3"))
+LOCAL_SUCCESSES_TO_CLEAR = int(os.getenv("LOCAL_SUCCESSES_TO_CLEAR", "2"))
+EXTERNAL_FAILS_FOR_ALERT = int(os.getenv("EXTERNAL_FAILS_FOR_ALERT", "3"))
+EXTERNAL_SUCCESSES_TO_CLEAR = int(os.getenv("EXTERNAL_SUCCESSES_TO_CLEAR", "2"))
+
+# ====== DISCORD MODULE ======
 discord_paths = [
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
-    ),
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")
-    ),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
 ]
-
 send_discord_message = None
-
 for discord_path in discord_paths:
     if os.path.isfile(discord_path):
         try:
-            spec = importlib.util.spec_from_file_location(
-                "discord_notify", discord_path
-            )
+            spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
             discord_notify = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(discord_notify)
             send_discord_message = discord_notify.send_discord_message
@@ -34,129 +33,135 @@ for discord_path in discord_paths:
             pass
 
 
+# ====== STATE HELPERS ======
 def load_alert_state():
     if os.path.exists(ALERT_STATE_FILE):
-        with open(ALERT_STATE_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
+        try:
+            with open(ALERT_STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "plex_local": {"status": "unknown", "failure_streak": 0, "success_streak": 0},
+        "plex_external": {"status": "unknown", "failure_streak": 0, "success_streak": 0},
+        "deluge_status": "unknown",
+    }
 
 def save_alert_state(state):
-    with open(ALERT_STATE_FILE, "w") as f:
-        json.dump(state, f)
-
+    try:
+        with open(ALERT_STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception:
+        pass
 
 def read_latest_data():
     try:
         with open(LOG_FILE, "r") as f:
             logs = json.load(f)
-            latest = logs[-1]
-            print(f"[DEBUG] JSON data read: {json.dumps(latest, indent=2)}")
-            return latest
+            if not logs:
+                return None
+            return logs[-1]
     except Exception as e:
         print(f"[ERROR] Unable to read data: {e}")
         return None
 
 
-def check_plex_internet_local_connectivity():
-    data = read_latest_data()
-    if data is None:
-        return
-
+# ====== CHECKS ======
+def check_plex_local(data, state):
     plex = data.get("plex", {})
     local_access = plex.get("local_access", False)
-    print(f"[DEBUG] local_access = {local_access}")
+    connected = plex.get("connected", False)
 
-    if not (local_access is True or local_access == "yes"):
-        print("[ALERT] Plex is not accessible locally.")
-        if send_discord_message:
-            send_discord_message("[ALERT] Local access to Plex lost.")
-        # subprocess.run(["docker", "restart", PLEX_SERVICE_NAME])
-        if send_discord_message:
-            send_discord_message(
-                "[ALERT] Plex was automatically restarted (local access failed)."
-            )
+    is_up = bool(local_access) or bool(connected)
+    node = state["plex_local"]
+    prev_status = node.get("status", "unknown")
+
+    if is_up:
+        node["success_streak"] += 1
+        node["failure_streak"] = 0
+        if prev_status != "online" and node["success_streak"] >= LOCAL_SUCCESSES_TO_CLEAR:
+            node["status"] = "online"
+            print("[OK] Plex is accessible locally.")
+            if send_discord_message and prev_status == "offline":
+                send_discord_message("[ALERT - END] Plex local access restored.")
     else:
-        print("[OK] Plex is accessible locally.")
+        node["failure_streak"] += 1
+        node["success_streak"] = 0
+        if prev_status != "offline" and node["failure_streak"] >= LOCAL_FAILS_FOR_ALERT:
+            node["status"] = "offline"
+            print("[ALERT] Plex local access lost.")
+            if send_discord_message:
+                send_discord_message("[ALERT - initial] Plex local access lost (after consecutive failures).")
+
+    state["plex_local"] = node
 
 
-def check_plex_internet_online_connectivity():
-    data = read_latest_data()
-    if data is None:
-        return
-
-    state = load_alert_state()
-
+def check_plex_external(data, state):
     plex = data.get("plex", {})
-    external_access = plex.get("external_access", False)
-    print(f"[DEBUG] external_access = {external_access}")
+    external_access = str(plex.get("external_access", "")).lower()
+    external_detail = str(plex.get("external_detail", ""))
 
-    # Si external_access est booléen ou string valide
-    if external_access is True or str(external_access).lower() == "yes":
-        print("[OK] Plex is accessible externally.")
-        if state.get("plex_external_status") == "offline":
-            if send_discord_message:
-                send_discord_message("[ALERT - END] Plex is online")
-            state["plex_external_status"] = "online"
+    is_up = (external_access == "yes")
+    node = state["plex_external"]
+    prev_status = node.get("status", "unknown")
 
+    if is_up:
+        node["success_streak"] += 1
+        node["failure_streak"] = 0
+        if prev_status != "online" and node["success_streak"] >= EXTERNAL_SUCCESSES_TO_CLEAR:
+            node["status"] = "online"
+            print("[OK] Plex is accessible externally.")
+            if send_discord_message and prev_status == "offline":
+                send_discord_message("[ALERT - END] Plex is online from outside.")
     else:
-        print("[ALERT] Plex is not accessible externally.")
-        # Évite les répétitions même si on reste en erreur
-        if state.get("plex_external_status") != "offline":
+        node["failure_streak"] += 1
+        node["success_streak"] = 0
+        if prev_status != "offline" and node["failure_streak"] >= EXTERNAL_FAILS_FOR_ALERT:
+            node["status"] = "offline"
+            print("[ALERT] Plex external access lost.")
             if send_discord_message:
-                # Message clair pour distinguer une vraie perte d'une erreur technique
-                if external_access in [False, "no", "unknown"]:
-                    send_discord_message("[ALERT - initial] Plex appears to be offline : no connection from outside.")
+                if "via_ip_ok" in external_detail:
+                    send_discord_message("[ALERT - initial] External DNS resolution appears broken (fallback IP works).")
+                elif external_access == "error":
+                    send_discord_message(f"[ALERT] Plex external check error: {external_detail}")
                 else:
-                    send_discord_message("[ALERT] Plex external access is offline (exception during check).")
-            state["plex_external_status"] = "offline"
+                    send_discord_message("[ALERT - initial] Plex appears offline from outside (after consecutive failures).")
 
-    save_alert_state(state)
-
+    state["plex_external"] = node
 
 
-def check_deluge_activity(data):
-    state = load_alert_state()
+def check_deluge(data, state):
     deluge = data.get("deluge", {})
-    download_kbps = deluge.get("download_rate_kbps", None)
-    upload_kbps = deluge.get("upload_rate_kbps", None)
+    download_kbps = deluge.get("download_rate_kbps", 0.0)
+    upload_kbps = deluge.get("upload_rate_kbps", 0.0)
 
-    current_state = (
-        "inactive" if download_kbps == 0.0 and upload_kbps == 0.0 else "active"
-    )
+    current_state = "inactive" if download_kbps == 0.0 and upload_kbps == 0.0 else "active"
     last_state = state.get("deluge_status")
-
-    print(
-        f"[DEBUG] Deluge Speed - Download: {download_kbps} kB/s, Upload: {upload_kbps} kB/s"
-    )
 
     if current_state == "inactive" and last_state != "inactive":
         print("[ALERT] Deluge has become inactive.")
         if send_discord_message:
-            send_discord_message(
-                "[ALERT - initial] Deluge appears to be inactive: no incoming or outgoing traffic detected."
-            )
+            send_discord_message("[ALERT - initial] Deluge appears inactive: no traffic detected.")
     elif current_state == "active" and last_state == "inactive":
-        print("[ALERT] Deluge inactivity ended.")
+        print("[OK] Deluge is active again.")
         if send_discord_message:
-            send_discord_message("[ALERT - END] Deluge is active again: event ended.")
+            send_discord_message("[ALERT - END] Deluge is active again.")
 
     state["deluge_status"] = current_state
-    save_alert_state(state)
 
 
+# ====== MAIN ======
 def main():
     print("[MONITOR] Monitoring in progress...")
-
-    # Fetch shared data
     data = read_latest_data()
     if data is None:
         return
 
-    # Core monitoring functions
-    check_plex_internet_online_connectivity()
-    check_plex_internet_local_connectivity()
-    check_deluge_activity(data)
+    state = load_alert_state()
+    check_plex_external(data, state)
+    check_plex_local(data, state)
+    check_deluge(data, state)
+    save_alert_state(state)
 
 
 if __name__ == "__main__":
