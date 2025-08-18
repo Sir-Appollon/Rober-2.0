@@ -34,11 +34,12 @@ else:
     env_loaded = False
 
 # ========= CONFIG ENV (timeouts/retries & speedtest) =========
-CONNECT_TIMEOUT = int(os.getenv("CONNECT_TIMEOUT", "3"))   # G
-MAX_TIME        = int(os.getenv("MAX_TIME", "10"))          # G
-RETRIES         = int(os.getenv("RETRIES", "2"))            # A
-SPEEDTEST_ENABLED = os.getenv("SPEEDTEST_ENABLED", "1") == "1"  # B
-SPEEDTEST_COOLDOWN_SEC = int(os.getenv("SPEEDTEST_COOLDOWN_SEC", "7200"))  # 2h entre tests
+CONNECT_TIMEOUT = int(os.getenv("CONNECT_TIMEOUT", "3"))
+MAX_TIME        = int(os.getenv("MAX_TIME", "10"))
+RETRIES         = int(os.getenv("RETRIES", "2"))
+
+SPEEDTEST_ENABLED = os.getenv("SPEEDTEST_ENABLED", "1") == "1"
+SPEEDTEST_COOLDOWN_SEC = int(os.getenv("SPEEDTEST_COOLDOWN_SEC", "7200"))  # 2h
 SPEEDTEST_STATE_FILE = "/mnt/data/speedtest_state.json"
 
 # ========= CONFIG DELUGE RPC =========
@@ -79,7 +80,6 @@ discord_paths = [
     os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
 ]
-
 send_discord_message = None
 for discord_path in discord_paths:
     if os.path.isfile(discord_path):
@@ -104,12 +104,8 @@ def _ensure_https(domain: str) -> str:
 def _extract_host(domain_url: str) -> str:
     return re.sub(r"^https?://", "", domain_url).split("/", 1)[0]
 
-# ---------- A + G : cURL helpers avec retries/timeouts unifiés ----------
+# ---------- Helpers cURL (retries/timeouts unifiés) ----------
 def curl_http_code(args) -> (int, str):
-    """
-    Retourne (returncode, http_code_ou_retcode_*).
-    Args (list) ex: ["https://host/identity"] ou ["--resolve","host:443:IP","https://host/identity"]
-    """
     cmd = [
         "curl", "-sS",
         "--retry", str(RETRIES), "--retry-all-errors",
@@ -123,9 +119,6 @@ def curl_http_code(args) -> (int, str):
     return p.returncode, code if code else f"retcode_{p.returncode}"
 
 def curl_http_head(url: str) -> (int, str):
-    """
-    HEAD rapide (moins coûteux qu'un GET) avec mêmes politiques de retry/timeout.
-    """
     cmd = [
         "curl", "-sS", "-I",
         "--retry", str(RETRIES), "--retry-all-errors",
@@ -139,7 +132,7 @@ def curl_http_head(url: str) -> (int, str):
     code = (p.stdout or "").strip()
     return p.returncode, code if code else f"retcode_{p.returncode}"
 
-# ---------- F : test TCP bas niveau (port ouvert ?) ----------
+# ---------- Test TCP bas niveau ----------
 def tcp_port_open(host: str, port: int, timeout=2.5) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -147,7 +140,7 @@ def tcp_port_open(host: str, port: int, timeout=2.5) -> bool:
     except Exception:
         return False
 
-# ---------- C : IP publique avec cache anti-spam ----------
+# ---------- IP publique avec cache ----------
 IP_CACHE_FILE = "/mnt/data/public_ip_cache.json"
 IP_CACHE_TTL_SEC = int(os.getenv("PUBLIC_IP_CACHE_TTL_SEC", "600"))  # 10 min
 
@@ -169,11 +162,9 @@ def _read_ip_cache():
     return ""
 
 def get_public_ip(timeout=5) -> str:
-    # 1) cache
     ip = _read_ip_cache()
     if ip:
         return ip
-    # 2) providers en cascade
     for url in ["https://api.ipify.org", "https://ifconfig.me", "https://icanhazip.com"]:
         try:
             rc = subprocess.run(
@@ -181,7 +172,7 @@ def get_public_ip(timeout=5) -> str:
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
             cand = (rc.stdout or "").strip()
-            socket.inet_aton(cand)  # validation IPv4
+            socket.inet_aton(cand)
             _write_ip_cache(cand)
             return cand
         except Exception:
@@ -192,13 +183,8 @@ def get_public_ip(timeout=5) -> str:
 ALLOWED_OK = {"200", "301", "302", "401", "403"}
 
 def _url_host_port_from_plex_url(plex_url: str):
-    """
-    Extrait host et port à partir d'une URL Plex locale type http(s)://host[:port]
-    Renvoie (host, port_int_ou_32400_par_defaut)
-    """
     if not plex_url:
         return None, 32400
-    # enlever protocole
     rest = re.sub(r"^https?://", "", plex_url)
     hostport = rest.split("/", 1)[0]
     if ":" in hostport:
@@ -211,35 +197,38 @@ def _url_host_port_from_plex_url(plex_url: str):
 
 def test_local_plex_identity(plex_url: str):
     """
-    Local : d'abord TCP 32400 (ou port fourni), puis HEAD /identity, puis GET /identity
+    Local : TCP (host:port) -> HEAD /identity -> (fallback) GET /identity
     """
     if not plex_url:
         return False, "no_plex_url"
-
     host, port = _url_host_port_from_plex_url(plex_url)
     if not host:
         return False, "no_host_in_url"
 
-    # F.1 TCP
     if not tcp_port_open(host, port, timeout=min(2.5, CONNECT_TIMEOUT)):
         return False, f"tcp_closed_{host}:{port}"
 
     identity_url = plex_url.rstrip("/") + "/identity"
-
-    # F.2 HEAD rapide
     rc_h, code_h = curl_http_head(identity_url)
     if rc_h == 0 and code_h in ALLOWED_OK:
         return True, f"HEAD_{code_h}"
 
-    # fallback GET
     rc, code = curl_http_code([identity_url])
     ok = (rc == 0 and code in ALLOWED_OK)
     return ok, code
 
+def resolve_a_records(host: str):
+    try:
+        return list({ai[4][0] for ai in socket.getaddrinfo(host, None, family=socket.AF_INET)})
+    except Exception:
+        return []
+
 def test_external_plex(domain_env: str):
     """
-    Test externe : d'abord HEAD via DNS, sinon fallback via IP publique forcée.
-    Renvoie ("yes"/"no"/"error", details).
+    Définition "accessible en ligne":
+    - Le DNS du domaine DOIT contenir l'IP publique courante
+    - ET un HEAD via DNS sur https://<domaine>/identity doit retourner un code OK (200/301/302/401/403)
+    Sinon -> "no" avec un détail expliquant la cause.
     """
     if not domain_env:
         return ("error", "no_domain_configured")
@@ -248,28 +237,25 @@ def test_external_plex(domain_env: str):
     host = _extract_host(domain_url)
     identity_url = f"https://{host}/identity"
 
-    # HEAD via DNS
+    pub_ip = get_public_ip(timeout=min(5, MAX_TIME))
+    if not pub_ip:
+        return ("no", "no_public_ip")
+
+    a_records = resolve_a_records(host)
+    if not a_records:
+        return ("no", f"dns_no_a_records (resolved=[]; public_ip={pub_ip})")
+
+    if pub_ip not in a_records:
+        return ("no", f"dns_mismatch (resolved={a_records}; public_ip={pub_ip})")
+
     try:
         rc, code = curl_http_head(identity_url)
         if rc == 0 and code in ALLOWED_OK:
-            return ("yes", f"HEAD_{code}")  # DNS OK
+            return ("yes", f"HEAD_{code}")
         else:
-            dns_fail = (rc, code)
+            return ("no", f"dns_ok_but_http_fail ({code})")
     except Exception as e:
-        dns_fail = ("error", str(e))
-
-    # Fallback via IP publique (GET pour compatibilité TLS/SNI via --resolve)
-    pub_ip = get_public_ip(timeout=min(5, MAX_TIME))
-    if not pub_ip:
-        return ("no", f"dns_fail={dns_fail}, no_public_ip")
-    try:
-        rc2, code2 = curl_http_code(["--resolve", f"{host}:443:{pub_ip}", identity_url])
-        if rc2 == 0 and code2 in ALLOWED_OK:
-            return ("no", f"dns_fail={dns_fail}, via_ip_ok={code2}")
-        else:
-            return ("no", f"dns_fail={dns_fail}, via_ip_fail={code2}")
-    except Exception as e:
-        return ("error", f"dns_fail={dns_fail}, via_ip_error={e}")
+        return ("no", f"dns_ok_but_http_error ({e})")
 
 # ========= OUTILS DOCKER/IP =========
 def get_deluge_ip():
@@ -365,14 +351,11 @@ try:
 except Exception:
     internet_check = None
 
-# 4) (B) Speedtest — DÉCALÉ EN FIN DE SCRIPT (après les checks Plex)
-#    On initialise à 0.0, on remplira à la fin si autorisé et en cooldown.
+# 4) Speedtest (rempli en fin si conditions OK)
 download_speed = 0.0
 upload_speed = 0.0
-_speedtest_done = False
 
 def _can_run_speedtest_now() -> bool:
-    # respect du cooldown
     try:
         with open(SPEEDTEST_STATE_FILE, "r") as f:
             st = json.load(f)
@@ -413,10 +396,7 @@ try:
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
 
-# (F + A + G) Local : TCP -> HEAD -> GET
 local_ok, local_code = test_local_plex_identity(PLEX_URL)
-
-# (F + A + G + C) Externe : HEAD DNS -> fallback --resolve avec IP publique
 external_accessible, external_detail = test_external_plex(EXTERNAL_PLEX_URL)
 
 # 6) Docker stats Plex
@@ -462,36 +442,33 @@ for mount in custom_mounts:
             "total_gb": round(usage.total / (1024**3)),
             "used_pct": round((usage.used / usage.total) * 100),
         }
-    except Exception as e:
+    except Exception:
         pass
 
 # 10) Deluge stats
 deluge_stats = get_deluge_stats()
 
-# 11) Speedtest en FIN de script (B) — seulement si checks réseau/Plex pas en échec dur
+# 11) Speedtest en FIN de script (limité et avec cooldown)
 should_try_speedtest = (
     SPEEDTEST_ENABLED
     and _can_run_speedtest_now()
-    and (local_ok or plex_connected)  # éviter de stresser le réseau si Plex déjà KO localement
+    and (local_ok or plex_connected)  # éviter de stresser si Plex KO localement
 )
-
 if should_try_speedtest:
     try:
         import speedtest
         st = speedtest.Speedtest()
-        # down toujours, upload 1 fois sur 3 (réduit l'impact)
         download_speed = st.download() / 1e6
+        # Upload moins fréquent pour réduire l'impact
         if int(time.time()) % 3 == 0:
             upload_speed = st.upload() / 1e6
         else:
             upload_speed = 0.0
         _mark_speedtest_ran()
-        _speedtest_done = True
-    except Exception as e:
-        # ne jamais casser le run pour un speedtest raté
+    except Exception:
         download_speed = upload_speed = 0.0
 
-# 12) JSON final (structure préservée)
+# 12) JSON final
 data_entry = {
     "docker_services": {
         service: subprocess.run(
@@ -519,7 +496,7 @@ data_entry = {
         "transcode_folder_found": (free_gb is not None),
         "local_access": bool(local_ok),
         "local_detail": str(local_code),
-        "external_access": str(external_accessible),   # "yes" / "no" / "error" (inchangé)
+        "external_access": str(external_accessible),   # "yes" / "no" / "error"
         "external_detail": str(external_detail),
     },
     "system": {
@@ -544,7 +521,6 @@ data_entry = {
     },
     "storage": disk_status,
     "performance": {"runtime_seconds": round(time.time() - start_time, 2)},
-    # Champ additionnel (optionnel) pour debug/traçabilité des réglages (tu peux retirer)
     "meta": {
         "retries": RETRIES,
         "connect_timeout": CONNECT_TIMEOUT,
