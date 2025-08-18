@@ -33,14 +33,6 @@ else:
     print("[DEBUG - run_quick_check.py - ENV - 3] No .env file found.")
     env_loaded = False
 
-# ========= CONFIG ENV (timeouts/retries & speedtest) =========
-CONNECT_TIMEOUT = int(os.getenv("CONNECT_TIMEOUT", "3"))   # G
-MAX_TIME        = int(os.getenv("MAX_TIME", "10"))          # G
-RETRIES         = int(os.getenv("RETRIES", "2"))            # A
-SPEEDTEST_ENABLED = os.getenv("SPEEDTEST_ENABLED", "1") == "1"  # B
-SPEEDTEST_COOLDOWN_SEC = int(os.getenv("SPEEDTEST_COOLDOWN_SEC", "7200"))  # 2h entre tests
-SPEEDTEST_STATE_FILE = "/mnt/data/speedtest_state.json"
-
 # ========= CONFIG DELUGE RPC =========
 deluge_config = {
     "host": "localhost",
@@ -104,170 +96,68 @@ def _ensure_https(domain: str) -> str:
 def _extract_host(domain_url: str) -> str:
     return re.sub(r"^https?://", "", domain_url).split("/", 1)[0]
 
-# ---------- A + G : cURL helpers avec retries/timeouts unifiés ----------
-def curl_http_code(args) -> (int, str):
-    """
-    Retourne (returncode, http_code_ou_retcode_*).
-    Args (list) ex: ["https://host/identity"] ou ["--resolve","host:443:IP","https://host/identity"]
-    """
-    cmd = [
-        "curl", "-sS",
-        "--retry", str(RETRIES), "--retry-all-errors",
-        "--connect-timeout", str(CONNECT_TIMEOUT),
-        "-m", str(MAX_TIME),
-        "-o", "/dev/null",
-        "-w", "%{http_code}"
-    ] + args
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    code = (p.stdout or "").strip()
-    return p.returncode, code if code else f"retcode_{p.returncode}"
-
-def curl_http_head(url: str) -> (int, str):
-    """
-    HEAD rapide (moins coûteux qu'un GET) avec mêmes politiques de retry/timeout.
-    """
-    cmd = [
-        "curl", "-sS", "-I",
-        "--retry", str(RETRIES), "--retry-all-errors",
-        "--connect-timeout", str(CONNECT_TIMEOUT),
-        "-m", str(MAX_TIME),
-        "-o", "/dev/null",
-        "-w", "%{http_code}",
-        url
-    ]
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    code = (p.stdout or "").strip()
-    return p.returncode, code if code else f"retcode_{p.returncode}"
-
-# ---------- F : test TCP bas niveau (port ouvert ?) ----------
-def tcp_port_open(host: str, port: int, timeout=2.5) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except Exception:
-        return False
-
-# ---------- C : IP publique avec cache anti-spam ----------
-IP_CACHE_FILE = "/mnt/data/public_ip_cache.json"
-IP_CACHE_TTL_SEC = int(os.getenv("PUBLIC_IP_CACHE_TTL_SEC", "600"))  # 10 min
-
-def _write_ip_cache(ip: str):
-    try:
-        with open(IP_CACHE_FILE, "w") as f:
-            json.dump({"ip": ip, "ts": int(time.time())}, f)
-    except Exception:
-        pass
-
-def _read_ip_cache():
-    try:
-        with open(IP_CACHE_FILE, "r") as f:
-            d = json.load(f)
-        if int(time.time()) - int(d.get("ts", 0)) <= IP_CACHE_TTL_SEC and d.get("ip"):
-            return d["ip"]
-    except Exception:
-        pass
-    return ""
-
 def get_public_ip(timeout=5) -> str:
-    # 1) cache
-    ip = _read_ip_cache()
-    if ip:
+    try:
+        rc = subprocess.run(
+            ["curl", "-sS", "-4", "--max-time", str(timeout), "ifconfig.me"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        ip = (rc.stdout or "").strip()
+        socket.inet_aton(ip)  # validation IPv4
         return ip
-    # 2) providers en cascade
-    for url in ["https://api.ipify.org", "https://ifconfig.me", "https://icanhazip.com"]:
-        try:
-            rc = subprocess.run(
-                ["curl", "-sS", "-4", "--max-time", str(timeout), url],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            cand = (rc.stdout or "").strip()
-            socket.inet_aton(cand)  # validation IPv4
-            _write_ip_cache(cand)
-            return cand
-        except Exception:
-            continue
-    return ""
+    except Exception:
+        return ""
+
+def curl_http_code(args, timeout=8) -> (int, str):
+    cmd = ["curl", "-sS", "-m", str(timeout), "-o", "/dev/null", "-w", "%{http_code}"] + args
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    code = (p.stdout or "").strip()
+    return p.returncode, code if code else f"retcode_{p.returncode}"
 
 # ========= TESTS PLEX =========
 ALLOWED_OK = {"200", "301", "302", "401", "403"}
 
-def _url_host_port_from_plex_url(plex_url: str):
-    """
-    Extrait host et port à partir d'une URL Plex locale type http(s)://host[:port]
-    Renvoie (host, port_int_ou_32400_par_defaut)
-    """
-    if not plex_url:
-        return None, 32400
-    # enlever protocole
-    rest = re.sub(r"^https?://", "", plex_url)
-    hostport = rest.split("/", 1)[0]
-    if ":" in hostport:
-        host, port = hostport.split(":", 1)
-        try:
-            return host, int(port)
-        except Exception:
-            return host, 32400
-    return hostport, 32400
-
-def test_local_plex_identity(plex_url: str):
-    """
-    Local : d'abord TCP 32400 (ou port fourni), puis HEAD /identity, puis GET /identity
-    """
+def test_local_plex_identity(plex_url: str, timeout=5):
     if not plex_url:
         return False, "no_plex_url"
+    try:
+        identity_url = plex_url.rstrip("/") + "/identity"
+        rc, code = curl_http_code([identity_url], timeout=timeout)
+        ok = (rc == 0 and code in ALLOWED_OK)
+        return ok, code
+    except Exception as e:
+        return False, str(e)
 
-    host, port = _url_host_port_from_plex_url(plex_url)
-    if not host:
-        return False, "no_host_in_url"
-
-    # F.1 TCP
-    if not tcp_port_open(host, port, timeout=min(2.5, CONNECT_TIMEOUT)):
-        return False, f"tcp_closed_{host}:{port}"
-
-    identity_url = plex_url.rstrip("/") + "/identity"
-
-    # F.2 HEAD rapide
-    rc_h, code_h = curl_http_head(identity_url)
-    if rc_h == 0 and code_h in ALLOWED_OK:
-        return True, f"HEAD_{code_h}"
-
-    # fallback GET
-    rc, code = curl_http_code([identity_url])
-    ok = (rc == 0 and code in ALLOWED_OK)
-    return ok, code
-
-def test_external_plex(domain_env: str):
+def test_external_plex(domain_env: str, timeout=8):
     """
-    Test externe : d'abord HEAD via DNS, sinon fallback via IP publique forcée.
-    Renvoie ("yes"/"no"/"error", details).
+    Test externe : d'abord via DNS, sinon fallback via IP publique forcée.
     """
     if not domain_env:
         return ("error", "no_domain_configured")
 
     domain_url = _ensure_https(domain_env)
     host = _extract_host(domain_url)
-    identity_url = f"https://{host}/identity"
 
-    # HEAD via DNS
+    # Test via DNS
     try:
-        rc, code = curl_http_head(identity_url)
+        rc, code = curl_http_code([f"https://{host}/identity"], timeout=timeout)
         if rc == 0 and code in ALLOWED_OK:
-            return ("yes", f"HEAD_{code}")  # DNS OK
+            return ("yes", code)  # DNS OK
         else:
             dns_fail = (rc, code)
     except Exception as e:
         dns_fail = ("error", str(e))
 
-    # Fallback via IP publique (GET pour compatibilité TLS/SNI via --resolve)
-    pub_ip = get_public_ip(timeout=min(5, MAX_TIME))
+    # Fallback via IP publique
+    pub_ip = get_public_ip()
     if not pub_ip:
         return ("no", f"dns_fail={dns_fail}, no_public_ip")
     try:
-        rc2, code2 = curl_http_code(["--resolve", f"{host}:443:{pub_ip}", identity_url])
-        if rc2 == 0 and code2 in ALLOWED_OK:
-            return ("no", f"dns_fail={dns_fail}, via_ip_ok={code2}")
+        rc, code = curl_http_code(["--resolve", f"{host}:443:{pub_ip}", f"https://{host}/identity"], timeout=timeout)
+        if rc == 0 and code in ALLOWED_OK:
+            return ("no", f"dns_fail={dns_fail}, via_ip_ok={code}")
         else:
-            return ("no", f"dns_fail={dns_fail}, via_ip_fail={code2}")
+            return ("no", f"dns_fail={dns_fail}, via_ip_fail={code}")
     except Exception as e:
         return ("error", f"dns_fail={dns_fail}, via_ip_error={e}")
 
@@ -365,30 +255,14 @@ try:
 except Exception:
     internet_check = None
 
-# 4) (B) Speedtest — DÉCALÉ EN FIN DE SCRIPT (après les checks Plex)
-#    On initialise à 0.0, on remplira à la fin si autorisé et en cooldown.
-download_speed = 0.0
-upload_speed = 0.0
-_speedtest_done = False
-
-def _can_run_speedtest_now() -> bool:
-    # respect du cooldown
-    try:
-        with open(SPEEDTEST_STATE_FILE, "r") as f:
-            st = json.load(f)
-        last = int(st.get("last", 0))
-        if time.time() - last < SPEEDTEST_COOLDOWN_SEC:
-            return False
-    except Exception:
-        pass
-    return True
-
-def _mark_speedtest_ran():
-    try:
-        with open(SPEEDTEST_STATE_FILE, "w") as f:
-            json.dump({"last": int(time.time())}, f)
-    except Exception:
-        pass
+# 4) Speedtest
+try:
+    import speedtest
+    st = speedtest.Speedtest()
+    download_speed = st.download() / 1e6
+    upload_speed = st.upload() / 1e6
+except Exception:
+    download_speed = upload_speed = 0.0
 
 # 5) Plex tests
 PLEX_URL = os.getenv("PLEX_SERVER")
@@ -413,11 +287,8 @@ try:
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
 
-# (F + A + G) Local : TCP -> HEAD -> GET
-local_ok, local_code = test_local_plex_identity(PLEX_URL)
-
-# (F + A + G + C) Externe : HEAD DNS -> fallback --resolve avec IP publique
-external_accessible, external_detail = test_external_plex(EXTERNAL_PLEX_URL)
+local_ok, local_code = test_local_plex_identity(PLEX_URL, timeout=5)
+external_accessible, external_detail = test_external_plex(EXTERNAL_PLEX_URL, timeout=8)
 
 # 6) Docker stats Plex
 try:
@@ -468,30 +339,7 @@ for mount in custom_mounts:
 # 10) Deluge stats
 deluge_stats = get_deluge_stats()
 
-# 11) Speedtest en FIN de script (B) — seulement si checks réseau/Plex pas en échec dur
-should_try_speedtest = (
-    SPEEDTEST_ENABLED
-    and _can_run_speedtest_now()
-    and (local_ok or plex_connected)  # éviter de stresser le réseau si Plex déjà KO localement
-)
-
-if should_try_speedtest:
-    try:
-        import speedtest
-        st = speedtest.Speedtest()
-        # down toujours, upload 1 fois sur 3 (réduit l'impact)
-        download_speed = st.download() / 1e6
-        if int(time.time()) % 3 == 0:
-            upload_speed = st.upload() / 1e6
-        else:
-            upload_speed = 0.0
-        _mark_speedtest_ran()
-        _speedtest_done = True
-    except Exception as e:
-        # ne jamais casser le run pour un speedtest raté
-        download_speed = upload_speed = 0.0
-
-# 12) JSON final (structure préservée)
+# 11) JSON final
 data_entry = {
     "docker_services": {
         service: subprocess.run(
@@ -518,9 +366,9 @@ data_entry = {
         "ram_usage": round(mem, 2),
         "transcode_folder_found": (free_gb is not None),
         "local_access": bool(local_ok),
-        "local_detail": str(local_code),
-        "external_access": str(external_accessible),   # "yes" / "no" / "error" (inchangé)
-        "external_detail": str(external_detail),
+        "local_detail": local_code,
+        "external_access": external_accessible,
+        "external_detail": external_detail,
     },
     "system": {
         "cpu_total": round(cpu_total, 2),
@@ -544,15 +392,6 @@ data_entry = {
     },
     "storage": disk_status,
     "performance": {"runtime_seconds": round(time.time() - start_time, 2)},
-    # Champ additionnel (optionnel) pour debug/traçabilité des réglages (tu peux retirer)
-    "meta": {
-        "retries": RETRIES,
-        "connect_timeout": CONNECT_TIMEOUT,
-        "max_time": MAX_TIME,
-        "speedtest_enabled": SPEEDTEST_ENABLED,
-        "speedtest_cooldown_sec": SPEEDTEST_COOLDOWN_SEC,
-        "public_ip_cache_ttl_sec": IP_CACHE_TTL_SEC
-    }
 }
 
 try:
