@@ -4,7 +4,6 @@
 import json
 import os
 import importlib.util
-import time
 
 LOG_FILE = "/mnt/data/system_monitor_log.json"
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"
@@ -35,17 +34,24 @@ for discord_path in discord_paths:
 
 # ====== STATE HELPERS ======
 def load_alert_state():
-    if os.path.exists(ALERT_STATE_FILE):
-        try:
-            with open(ALERT_STATE_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
-        "plex_local": {"status": "unknown", "failure_streak": 0, "success_streak": 0},
-        "plex_external": {"status": "unknown", "failure_streak": 0, "success_streak": 0},
-        "deluge_status": "unknown",
+    # état par défaut complet
+    default = {
+        "plex_local":   {"status": "unknown", "failure_streak": 0, "success_streak": 0},
+        "plex_external":{"status": "unknown", "failure_streak": 0, "success_streak": 0},
+        "deluge_status":"unknown",
     }
+    try:
+        if os.path.exists(ALERT_STATE_FILE):
+            with open(ALERT_STATE_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    for k, v in default.items():
+                        data.setdefault(k, v)
+                    return data
+    except Exception:
+        pass
+    return default
+
 
 def save_alert_state(state):
     try:
@@ -53,6 +59,7 @@ def save_alert_state(state):
             json.dump(state, f)
     except Exception:
         pass
+
 
 def read_latest_data():
     try:
@@ -68,12 +75,12 @@ def read_latest_data():
 
 # ====== CHECKS ======
 def check_plex_local(data, state):
-    plex = data.get("plex", {})
-    local_access = plex.get("local_access", False)
-    connected = plex.get("connected", False)
+    plex = data.get("plex", {}) or {}
+    local_access = bool(plex.get("local_access", False))
+    connected = bool(plex.get("connected", False))
+    is_up = local_access or connected
 
-    is_up = bool(local_access) or bool(connected)
-    node = state["plex_local"]
+    node = state.setdefault("plex_local", {"status": "unknown", "failure_streak": 0, "success_streak": 0})
     prev_status = node.get("status", "unknown")
 
     if is_up:
@@ -97,12 +104,13 @@ def check_plex_local(data, state):
 
 
 def check_plex_external(data, state):
-    plex = data.get("plex", {})
+    plex = data.get("plex", {}) or {}
     external_access = str(plex.get("external_access", "")).lower()
     external_detail = str(plex.get("external_detail", ""))
 
     is_up = (external_access == "yes")
-    node = state["plex_external"]
+
+    node = state.setdefault("plex_external", {"status": "unknown", "failure_streak": 0, "success_streak": 0})
     prev_status = node.get("status", "unknown")
 
     if is_up:
@@ -131,7 +139,7 @@ def check_plex_external(data, state):
 
 
 def check_deluge(data, state):
-    deluge = data.get("deluge", {})
+    deluge = data.get("deluge", {}) or {}
     download_kbps = deluge.get("download_rate_kbps", 0.0)
     upload_kbps = deluge.get("upload_rate_kbps", 0.0)
 
