@@ -201,6 +201,9 @@ services:
       - ${ROOT}/config/nginx/letsencrypt/live:/etc/letsencrypt/live
       - ${ROOT}/config/nginx/letsencrypt/archive:/etc/letsencrypt/archive
       - ${ROOT}/config/nginx/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     restart: unless-stopped
 
   monitor:
