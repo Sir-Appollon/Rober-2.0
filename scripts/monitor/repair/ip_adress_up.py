@@ -1,99 +1,218 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ip_adresse_up.py
+- Lit l'IP VPN (tun0) dans le conteneur VPN.
+- Compare avec les valeurs Deluge dans core.conf (listen_interface / outgoing_interface).
+- Répare selon le MODE_AUTO (env) ou le mode CLI.
+- Envoie des notifications Discord si DISCORD_WEBHOOK est défini.
 
-import subprocess
-import time
-import re
+MODES (env MODE_AUTO ou --mode)
+  never   : pas de modification (dry-run), sauf si --repair
+  on-fail : répare seulement si la conf diffère de l'IP VPN
+  always  : répare (applique) à chaque exécution
+
+CLI (priorité > env)
+  --mode {never,on-fail,always}  # surclasse MODE_AUTO
+  --always                       # équivalent à --mode always
+  --repair                       # applique en mode on-fail, même si MODE_AUTO=never
+  --force                        # redémarre Deluge même sans modif
+  --dry-run                      # force dry-run (n’écrit pas), utile pour tester
+
+ENV attendus
+  VPN_CONTAINER=vpn
+  DELUGE_CONTAINER=deluge
+  DELUGE_CONFIG_PATH=/app/config/deluge/core.conf
+  MODE_AUTO=never|on-fail|always
+  DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
+"""
+
+import argparse
+import json
 import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+import urllib.request
+import urllib.error
 
-# Chemin vers le core.conf depuis le host
-CONFIG_PATH = "/app/config/deluge/core.conf"
+VPN_CONTAINER      = os.environ.get("VPN_CONTAINER", "vpn")
+DELUGE_CONTAINER   = os.environ.get("DELUGE_CONTAINER", "deluge")
+CONFIG_PATH        = os.environ.get("DELUGE_CONFIG_PATH", "/app/config/deluge/core.conf")
+MODE_AUTO_DEFAULT  = os.environ.get("MODE_AUTO", "never").strip().lower()  # env par défaut
+DISCORD_WEBHOOK    = os.environ.get("DISCORD_WEBHOOK", "").strip()
 
+# --------------- Discord helper ----------------
+def _discord_send(content: str):
+    """Poste un message simple sur Discord si DISCORD_WEBHOOK est défini. No-op sinon."""
+    if not DISCORD_WEBHOOK:
+        return
+    try:
+        data = json.dumps({"content": content[:1900]}).encode("utf-8")
+        req = urllib.request.Request(DISCORD_WEBHOOK, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as _:
+            pass
+    except Exception:
+        # ne pas casser le script si Discord est injoignable
+        pass
 
-def stop_deluge():
-    print("[INFO] Arrêt de Deluge...")
-    subprocess.run(
-        ["docker", "stop", "deluge"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def start_deluge():
-    print("[INFO] Redémarrage de Deluge...")
-    subprocess.run(
-        ["docker", "start", "deluge"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def is_deluge_running():
-    result = subprocess.run(
-        ["docker", "ps", "-q", "-f", "name=deluge"], capture_output=True, text=True
-    )
-    return result.stdout.strip() != ""
-
+# ----------------- utils proc -----------------
+def run(cmd):
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
 
 def get_vpn_internal_ip():
-    print("[INFO] Récupération de l'IP interne du VPN (tun0)...")
+    rc, out, err = run(["docker", "exec", VPN_CONTAINER, "ip", "addr", "show", "dev", "tun0"])
+    if rc != 0:
+        msg = f"Cannot read tun0 in container '{VPN_CONTAINER}': {err or out}"
+        print(f"[FAIL] {msg}")
+        _discord_send(f"❌ *ip_adresse_up*: {msg}")
+        return None
+    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out)
+    return m.group(1) if m else None
+
+def load_core_conf(path):
+    if not os.path.isfile(path):
+        msg = f"Missing Deluge config: {path}"
+        print(f"[FAIL] {msg}")
+        _discord_send(f"❌ *ip_adresse_up*: {msg}")
+        return None
     try:
-        result = subprocess.run(
-            ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
-            capture_output=True,
-            text=True,
-        )
-        match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
-        if match:
-            ip = match.group(1)
-            print(f"[VPN] IP VPN locale détectée : {ip}")
-            return ip
-        else:
-            raise RuntimeError("Aucune IP détectée sur l'interface tun0")
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception as e:
-        raise RuntimeError(f"[ERREUR] Impossible de détecter l'IP VPN interne : {e}")
+        msg = f"Could not read JSON: {e}"
+        print(f"[FAIL] {msg}")
+        _discord_send(f"❌ *ip_adresse_up*: {msg}")
+        return None
 
-
-def update_deluge_ip_in_config(new_ip):
-    print(f"[INFO] Mise à jour du fichier core.conf avec l'IP {new_ip}...")
+def atomic_write_json(path, data):
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    bak = f"{path}.bak-{ts}"
     try:
-        with open(CONFIG_PATH, "r") as f:
-            lines = f.readlines()
-
-        new_lines = []
-        has_listen = has_outgoing = False
-        for line in lines:
-            if '"listen_interface"' in line:
-                new_lines.append(f'  "listen_interface": "{new_ip}",\n')
-                has_listen = True
-            elif '"outgoing_interface"' in line:
-                new_lines.append(f'  "outgoing_interface": "{new_ip}",\n')
-                has_outgoing = True
-            else:
-                new_lines.append(line)
-
-        if not has_listen:
-            new_lines.insert(-1, f'  "listen_interface": "{new_ip}",\n')
-        if not has_outgoing:
-            new_lines.insert(-1, f'  "outgoing_interface": "{new_ip}",\n')
-
-        with open(CONFIG_PATH, "w") as f:
-            f.writelines(new_lines)
-
-        print("[INFO] Mise à jour du core.conf réussie.")
+        if os.path.exists(path):
+            os.replace(path, bak)
+            print(f"[INFO] Backup saved: {bak}")
+            _discord_send(f"🗄️ *ip_adresse_up*: backup créé `{bak}`")
     except Exception as e:
-        raise RuntimeError(f"[ERREUR] Échec de la mise à jour du core.conf : {e}")
+        print(f"[WARN] Could not create backup: {e}")
+        _discord_send(f"⚠️ *ip_adresse_up*: backup non créé ({e})")
+    os.replace(tmp, path)
 
+def restart_deluge():
+    print(f"[ACTION] Restarting '{DELUGE_CONTAINER}'…")
+    _discord_send(f"🔄 *ip_adresse_up*: redémarrage de `{DELUGE_CONTAINER}`…")
+    rc, out, err = run(["docker", "restart", DELUGE_CONTAINER])
+    if rc == 0:
+        print("[OK] Deluge restarted.")
+        _discord_send("✅ *ip_adresse_up*: Deluge redémarré.")
+        return True
+    msg = f"Deluge restart failed: {err or out}"
+    print(f"[FAIL] {msg}")
+    _discord_send(f"❌ *ip_adresse_up*: {msg}")
+    return False
 
-if __name__ == "__main__":
-    print("[SCRIPT] Début du script de configuration IP Deluge depuis VPN")
+# ----------------- main -----------------
+def main():
+    _discord_send("🔍 *ip_adresse_up*: démarrage du check.")
+    ap = argparse.ArgumentParser(description="Update Deluge core.conf with VPN tun0 IP.")
+    ap.add_argument("--mode", choices=["never","on-fail","always"],
+                    help="override MODE_AUTO env")
+    ap.add_argument("--always", action="store_true",
+                    help="shortcut for --mode always")
+    ap.add_argument("--repair", action="store_true",
+                    help="apply changes if needed (on-fail) even if MODE_AUTO=never")
+    ap.add_argument("--force", action="store_true",
+                    help="restart Deluge even if no change was needed")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="do not write; just show actions")
+    args = ap.parse_args()
 
-    if is_deluge_running():
-        stop_deluge()
-        time.sleep(2)
+    # Résolution du mode effectif (priorité CLI)
+    if args.always:
+        mode = "always"
+    elif args.mode:
+        mode = args.mode
+    else:
+        mode = MODE_AUTO_DEFAULT  # env
+    mode = mode.strip().lower()
+    if mode not in {"never","on-fail","always"}:
+        mode = "never"
+    print(f"[INFO] MODE (effective):  {mode}")
+    _discord_send(f"⚙️ *ip_adresse_up*: mode **{mode}**{' + DRY-RUN' if args.dry_run else ''}.")
 
     vpn_ip = get_vpn_internal_ip()
-    update_deluge_ip_in_config(vpn_ip)
+    if not vpn_ip:
+        print("[FAIL] No VPN IP detected on tun0.")
+        _discord_send("🔴 *ip_adresse_up*: aucune IP sur `tun0` (VPN down ?).")
+        print("[HINT] Check VPN container is up and tun0 exists.")
+        sys.exit(1)
 
-    start_deluge()
+    print(f"[OK] VPN internal IP: {vpn_ip}")
+    _discord_send(f"🟢 *ip_adresse_up*: IP VPN détectée **{vpn_ip}**.")
 
-    print("[SUCCESS] IP mise à jour et Deluge relancé.")
+    conf = load_core_conf(CONFIG_PATH)
+    if conf is None:
+        sys.exit(1)
+
+    listen_old   = conf.get("listen_interface")
+    outgoing_old = conf.get("outgoing_interface")
+    need_change  = (listen_old != vpn_ip) or (outgoing_old != vpn_ip)
+
+    print(f"[INFO] core.conf at: {CONFIG_PATH}")
+    print(f"[INFO] listen_interface:  {listen_old!r}")
+    print(f"[INFO] outgoing_interface:{outgoing_old!r}")
+
+    # Décision d'application
+    apply_change = False
+    if args.dry_run:
+        apply_change = False
+    else:
+        if mode == "always":
+            apply_change = True
+        elif mode == "on-fail":
+            apply_change = need_change
+        elif mode == "never":
+            # autoriser l’application si l’utilisateur a explicitement demandé --repair (on-fail)
+            apply_change = args.repair and need_change
+
+    if not apply_change:
+        # Pas d'application → logs + option de restart forcé
+        if not need_change:
+            print("[OK] Config already pinned to VPN IP. No changes required.")
+            _discord_send("✅ *ip_adresse_up*: core.conf déjà aligné sur l’IP VPN.")
+        else:
+            plan = f"Would set listen_interface/outgoing_interface to {vpn_ip} (use --repair or --mode)."
+            print(f"[PLAN] {plan}")
+            _discord_send(f"📝 *ip_adresse_up*: DRY-RUN — {plan}")
+        if args.force:
+            if not restart_deluge():
+                sys.exit(1)
+        sys.exit(0)
+
+    # Application : mise à jour + restart
+    conf["listen_interface"]   = vpn_ip
+    conf["outgoing_interface"] = vpn_ip
+    try:
+        atomic_write_json(CONFIG_PATH, conf)
+        msg = f"core.conf updated to VPN IP {vpn_ip}."
+        print(f"[ACTION] {msg}")
+        _discord_send(f"🛠️ *ip_adresse_up*: {msg}")
+    except Exception as e:
+        err = f"Could not write core.conf: {e}"
+        print(f"[FAIL] {err}")
+        _discord_send(f"❌ *ip_adresse_up*: {err}")
+        sys.exit(1)
+
+    if not restart_deluge():
+        sys.exit(1)
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()

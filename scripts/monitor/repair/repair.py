@@ -11,6 +11,13 @@ repair.py — Orchestrateur de santé/réparation
 Nouveauté:
 - Auto-déclenchement du test Plex si alert_state.json indique 'offline'
   même SANS --plex-online (optionnellement avec force si souhaité).
+
+Ajouts:
+- Lancement direct de ip_adress_up.py avec:
+    --deluge-ip-up            → met à jour core.conf si nécessaire (mode on-fail par défaut)
+    --deluge-ip-force         → redémarre Deluge même sans changement
+    --ip-mode X / --ip-always → passe le mode à ip_adress_up.py (override MODE_AUTO)
+    --ip-dry-run              → ne rien écrire; seulement afficher le plan
 """
 
 import json
@@ -154,7 +161,7 @@ def _first_existing(paths):
 def resolve_plex_online_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "plex_online.py",                         # voisin de repair.py
+        BASE_DIR / "plex_online.py",                         # voisin de repair.py (ton fichier)
         (root / "scripts/tool/plex_online.py") if root else None,   # host
         Path("/app/tool/plex_online.py"),                    # docker si bind ajouté
         Path("/app/monitor/repair/plex_online.py"),          # docker voisin
@@ -165,7 +172,7 @@ def resolve_plex_online_script() -> Path | None:
 def resolve_deluge_ip_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "ip_adress_up.py",                        # voisin
+        BASE_DIR / "ip_adress_up.py",                        # voisin (orthographe 'adress')
         (root / "scripts/core/repair/ip_adress_up.py") if root else None,  # host
         Path("/app/repair/ip_adress_up.py"),                 # docker bind officiel
     ]
@@ -240,7 +247,39 @@ def run_and_send(cmd, title="Task", cwd: Path | None = None):
 
     return res.returncode
 
-# ---------- Deluge repair ----------
+# ---------- Lanceur Deluge IP updater (ip_adress_up.py) ----------
+def launch_deluge_ip_up(mode: str | None = None, force: bool = False, dry_run: bool = False):
+    script = resolve_deluge_ip_script()
+    if not script:
+        print("[ERROR] ip_adress_up.py introuvable.")
+        if send_discord_message:
+            send_discord_message("[ERROR] ip_adress_up.py introuvable.")
+        return 127
+
+    cmd = ["python3", script.as_posix()]
+
+    # Passer le mode à ip_adress_up.py si demandé
+    if mode:
+        if mode == "always":
+            cmd.append("--always")
+        else:
+            cmd += ["--mode", mode]
+
+    # En MODE_AUTO=never côté script, --repair permet d'appliquer en on-fail si besoin
+    if mode in (None, "never"):
+        cmd.append("--repair")
+
+    if force:
+        cmd.append("--force")
+    if dry_run:
+        cmd.append("--dry-run")
+
+    if send_discord_message:
+        send_discord_message(f"[ACTION] Lancement ip_adress_up: {' '.join(cmd)}")
+
+    return run_and_send(cmd, "Deluge IP update", cwd=script.parent)
+
+# ---------- Deluge repair (legacy verify path) ----------
 def get_vpn_internal_ip():
     print("[INFO] Récupération IP interne VPN (tun0) depuis conteneur 'vpn'…")
     result = subprocess.run(
@@ -322,15 +361,21 @@ def should_run_plex_online_test(force=False):
     print("[DECISION] Conditions réunies → lancer test Plex")
     return True
 
-def launch_plex_online_test():
+def resolve_plex_online_cmd():
     script = resolve_plex_online_script()
     if not script:
-        print("[ERROR] plex_online.py introuvable dans les chemins connus. " +
+        print("[ERROR] plex_online.py introuvable dans les chemins connus. "
               "Ajoute le bind '- ${ROOT}/scripts/tool:/app/tool' OU place le script à côté de repair.py.")
+        return None, None
+    return ["python3", script.as_posix()], script.parent
+
+def launch_plex_online_test():
+    cmd, cwd = resolve_plex_online_cmd()
+    if not cmd:
         return 127
     if send_discord_message:
         send_discord_message("[ACTION] Running Plex online test…")
-    rc = run_and_send(["python3", script.as_posix()], "Plex online test", cwd=script.parent)
+    rc = run_and_send(cmd, "Plex online test", cwd=cwd)
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
     save_alert_state(state)
@@ -352,6 +397,19 @@ def main():
                         help="Ignorer les conditions et cooldowns (utilisé avec --plex-online)")
     parser.add_argument("--all", action="store_true",
                         help="Lancer tous les tests et réparations disponibles")
+
+    # === Nouveaux flags pour ip_adress_up.py ===
+    parser.add_argument("--deluge-ip-up", action="store_true",
+                        help="Met à jour core.conf avec l'IP VPN et redémarre Deluge si nécessaire")
+    parser.add_argument("--deluge-ip-force", action="store_true",
+                        help="Force le redémarrage de Deluge même sans changement")
+    parser.add_argument("--ip-mode", choices=["never","on-fail","always"],
+                        help="Passe le mode à ip_adress_up.py (override MODE_AUTO)")
+    parser.add_argument("--ip-always", action="store_true",
+                        help="Alias de --ip-mode always")
+    parser.add_argument("--ip-dry-run", action="store_true",
+                        help="N'écrit pas; affiche les actions prévues pour ip_adress_up.py")
+
     args = parser.parse_args()
 
     # Mode batch "tout"
@@ -361,7 +419,12 @@ def main():
             launch_plex_online_test()
         return
 
-    # Exécutions ciblées via flags
+    # Exécutions ciblées via flags (Deluge IP updater)
+    if args.deluge_ip_up or args.deluge_ip_force:
+        mode = "always" if args.ip_always else (args.ip_mode or None)
+        launch_deluge_ip_up(mode=mode, force=args.deluge_ip_force, dry_run=args.ip_dry_run)
+
+    # Exécutions ciblées via flags (legacy verify/repair + plex)
     if args.deluge_verify:
         handle_deluge_verification()
 
@@ -374,11 +437,11 @@ def main():
         else:
             print("[INFO] Plex online test skipped (status not offline ou cooldown).")
 
-    # --- AUTO: lancer plex_online si le JSON indique un problème (sans --plex-online) ---
-    # Ce bloc s'exécute même si aucun flag n'a été passé.
-    # Il déclenche le test Plex si l'état est 'offline'. Par défaut, il respecte le cooldown.
-    # Pour forcer en auto (ignorer cooldown), définir AUTO_PLEX_FORCE=1 dans l'env.
-    ran_anything = any([args.all, args.deluge_verify, args.deluge_repair, args.plex_online])
+    # --- AUTO: lancer plex_online si le JSON indique 'offline' (comportement initial, inchangé) ---
+    ran_anything = any([
+        args.all, args.deluge_verify, args.deluge_repair, args.plex_online,
+        args.deluge_ip_up, args.deluge_ip_force
+    ])
     if not ran_anything:
         state = load_alert_state()
         if state.get("plex_external_status") == "offline":
