@@ -65,19 +65,6 @@ DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
     DUCKDNS_DOMAIN = DOMAIN.split(".duckdns.org", 1)[0]
 
-
-def _mask(s: str, keep: int = 4) -> str:
-    if not s:
-        return "(empty)"
-    return s[:keep] + "…" if len(s) > keep else "…"
-
-
-print(f"[INFO] .env used: {ENV_PATH_USED or '(none)'}")
-print(f"[INFO] DOMAIN={DOMAIN}")
-print(f"[INFO] DUCKDNS_DOMAIN={DUCKDNS_DOMAIN or '(auto-deduction failed)'}")
-print(f"[INFO] DUCKDNS_TOKEN={_mask(DUCKDNS_TOKEN)}")
-
-
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
 
