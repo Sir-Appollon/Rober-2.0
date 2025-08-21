@@ -133,13 +133,11 @@ def ok(m):
 
 
 def warn(m):
-    print(_color("WARN", "[WARN] "), m)
-    _discord_send(f"⚠️ {m}")
+    print(_color("WARN", "[WARN] "), m)  # no Discord here
 
 
 def fail(m):
-    print(_color("FAIL", "[FAIL] "), m)
-    _discord_send(f"❌ {m}")
+    print(_color("FAIL", "[FAIL] "), m)  # no Discord here
 
 
 def header(m):
@@ -647,13 +645,15 @@ def main():
 
     failing = _collect_failures(results)
 
+    # === Résumé final (Discord sobre) ===
     if not failing:
         ok("All critical checks passed.")
-        _discord_send("🟢 **plex_online**: all critical checks passed.")
+        _discord_send("All critical checks passed.")
     else:
         fail("One or more checks failed: " + ", ".join(failing))
-        _discord_send(f"🔴 **plex_online**: failing tests → {', '.join(failing)}")
+        _discord_send("Fail: " + ", ".join(failing))
 
+    # Réparations (après envoi du résumé)
     _run_repairs(args.repair, failing, results)
 
     # code de sortie
