@@ -18,7 +18,8 @@ import subprocess
 import os
 import importlib.util
 
-INTERVAL_SECONDS = 60
+INTERVAL_SECONDS = 120
+INTERVAL_SECONDS_BETWEEN_DEF = 60
 mode = "debug"
 
 discord_paths = [
@@ -104,6 +105,8 @@ if __name__ == "__main__":
 
     while True:
         run_quick_check()
+        time.sleep(INTERVAL_SECONDS_BETWEEN_DEF)
         alerts()
+        time.sleep(INTERVAL_SECONDS_BETWEEN_DEF)
         repair()
         time.sleep(INTERVAL_SECONDS)
