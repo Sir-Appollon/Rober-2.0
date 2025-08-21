@@ -29,7 +29,7 @@ ENV_PATH_USED = None
 try:
     from dotenv import load_dotenv
 
-    for _p in (".env", "../.env", "../../.env", "../../../.env", "/app/.env"):
+    for _p in ("../../../.env", "/app/.env"):
         _abs = os.path.abspath(os.path.join(os.path.dirname(__file__), _p))
         if os.path.isfile(_abs):
             load_dotenv(_abs, override=True)  # <-- IMPORTANT
