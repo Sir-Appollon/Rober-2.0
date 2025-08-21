@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 plex_online.py
-Health checks for Plex + Nginx (Docker). Can optionally call repair_plex.py.
+Health checks for Plex + Nginx (Docker). DNS repair is implemented inline.
+Other repairs are not implemented yet (logs + Discord notice only).
 
-USAGE (common)
-  python3 scripts/tool/plex_online.py
-  python3 scripts/tool/plex_online.py --mode on-fail
-  python3 scripts/tool/plex_online.py --mode on-fail --apply
-  python3 scripts/tool/plex_online.py --mode on-fail --allow-repairs CERT_EXPIRY,DNS_MATCH
-  python3 scripts/tool/plex_online.py --json
+USAGE
+  python3 plex_online.py
+  python3 plex_online.py --repair on-fail
+  python3 plex_online.py --repair always
+  python3 plex_online.py --repair never
 """
 
 import argparse
@@ -18,39 +18,40 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
-from datetime import datetime, timezone
-import socket
 import urllib.request
+from datetime import datetime, timezone
 
-# --------------------------- SETTINGS --------------------------- #
+# =========================== SETTINGS =========================== #
 CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
 PLEX_CONTAINER = os.environ.get("PLEX_CONTAINER", "plex-server")
 
+# Normalise DOMAIN (tolère https:// et /path)
 DOMAIN_RAW = os.environ.get("DOMAIN", "plex-robert.duckdns.org")
-DOMAIN_HOST = re.sub(r"^https?://", "", DOMAIN_RAW).split("/")[0]
-DOMAIN = DOMAIN_HOST
+DOMAIN = re.sub(r"^https?://", "", DOMAIN_RAW).split("/")[0]
 
 CONF_PATH = os.environ.get("CONF_PATH", "/etc/nginx/conf.d/plex.conf")
-LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN_HOST}")
+LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN}")
+
 UPSTREAM_FALLBACK_HOST = os.environ.get("UPSTREAM_FALLBACK_HOST", "192.168.3.39")
 UPSTREAM_FALLBACK_PORT = os.environ.get("UPSTREAM_FALLBACK_PORT", "32400")
+
 CURL_TIMEOUT = int(os.environ.get("CURL_TIMEOUT", "10"))
 SIMULATE_EXTERNAL = os.environ.get("SIMULATE_EXTERNAL", "1") == "1"
 WARN_DAYS = int(os.environ.get("WARN_DAYS", "15"))
 
-MODE_AUTO = os.environ.get("MODE_AUTO", "never").strip()
+# DNS repair env
+DUCKDNS_DOMAIN = os.environ.get(
+    "DUCKDNS_DOMAIN", ""
+).strip()  # ex: "plex-robert" (sans .duckdns.org)
+DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 
-ALLOW_REPAIRS_ENV = os.environ.get("ALLOW_REPAIRS", "")
-DENY_REPAIRS_ENV = os.environ.get("DENY_REPAIRS", "")
-REPAIR_SCRIPT_ENV = os.environ.get(
-    "REPAIR_SCRIPT", os.path.join(os.path.dirname(__file__), "repair_plex.py")
-)
-
+# Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
-# --------------------------------------------------------------- #
 
+# Liste ordonnée des tests
 TESTS = [
     "PREFLIGHT",
     "CONF_PRESENT",
@@ -63,8 +64,9 @@ TESTS = [
 ]
 
 
-# --------------------------- UI helpers --------------------------- #
+# ======================== UI / LOG HELPERS ====================== #
 def _discord_send(msg: str):
+    """Envoie un message au webhook Discord (silence si non configuré)."""
     if not DISCORD_WEBHOOK:
         return
     try:
@@ -75,10 +77,10 @@ def _discord_send(msg: str):
         with urllib.request.urlopen(req, timeout=5):
             pass
     except Exception:
-        pass
+        pass  # ne jamais faire échouer le script pour Discord
 
 
-def color(tag, msg):
+def _color(tag, msg):
     codes = {
         "INFO": "\033[1;34m",
         "OK": "\033[1;32m",
@@ -91,29 +93,30 @@ def color(tag, msg):
 
 
 def info(m):
-    print(color("INFO", "[INFO] "), m)
+    print(_color("INFO", "[INFO] "), m)
 
 
 def ok(m):
-    print(color("OK", "[ OK ] "), m)
+    print(_color("OK", "[ OK ] "), m)
 
 
 def warn(m):
-    print(color("WARN", "[WARN] "), m)
+    print(_color("WARN", "[WARN] "), m)
     _discord_send(f"⚠️ {m}")
 
 
 def fail(m):
-    print(color("FAIL", "[FAIL] "), m)
+    print(_color("FAIL", "[FAIL] "), m)
     _discord_send(f"❌ {m}")
 
 
 def header(m):
-    print(color("HDR", f"\n=== {m} ==="))
+    print(_color("HDR", f"\n=== {m} ==="))
 
 
-# --------------------------- proc helpers --------------------------- #
+# ========================= PROC HELPERS ========================= #
 def run(cmd, timeout=None):
+    """Run a command; returns (rc, stdout, stderr)."""
     shell = isinstance(cmd, str)
     p = subprocess.run(
         cmd,
@@ -126,7 +129,12 @@ def run(cmd, timeout=None):
     return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
 
 
+def require(binname):
+    return shutil.which(binname) is not None
+
+
 def docker_exec(args, timeout=None):
+    """docker exec into the nginx container."""
     return run(["docker", "exec", "-i", CONTAINER] + args, timeout=timeout)
 
 
@@ -135,16 +143,13 @@ def docker_container_running(name):
     return rc == 0 and any(line.strip() == name for line in out.splitlines())
 
 
-def require(binname):
-    return shutil.which(binname) is not None
-
-
-# --------------------------- DNS/public IP helpers --------------------------- #
+# ==================== NET / DNS / CERT HELPERS ================== #
 def _have_cmd(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
 
 def _dig_a(domain: str, server: str, timeout=1.5, tries=1):
+    """Resolve A records via dig."""
     try:
         rc, out, _ = run(
             [
@@ -171,6 +176,10 @@ def _dig_a(domain: str, server: str, timeout=1.5, tries=1):
 
 
 def resolve_a_multi(domain: str, resolvers=None, timeout=1.5, tries=1):
+    """
+    Résout les A-records IPv4 via plusieurs résolveurs publics (+fallback système).
+    Retourne (answers_set, details_log)
+    """
     if resolvers is None:
         resolvers = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
 
@@ -184,6 +193,7 @@ def resolve_a_multi(domain: str, resolvers=None, timeout=1.5, tries=1):
             answers.update(ips)
 
     if not answers:
+        # Fallback système
         try:
             ai = socket.getaddrinfo(
                 domain, 0, family=socket.AF_INET, type=socket.SOCK_STREAM
@@ -198,6 +208,7 @@ def resolve_a_multi(domain: str, resolvers=None, timeout=1.5, tries=1):
 
 
 def get_public_ip():
+    """Get current public IPv4 with fallbacks."""
     for endpoint in (
         ["curl", "-sS", "-4", "https://ifconfig.me"],
         ["curl", "-sS", "-4", "https://api.ipify.org"],
@@ -210,11 +221,61 @@ def get_public_ip():
     return ""
 
 
-# --------------------------- tests --------------------------- #
+def parse_notafter_to_days(exp_line):
+    """Parse 'Jun  1 12:34:56 2025 GMT' -> (days_left, dt)."""
+    exp_norm = re.sub(r"\s{2,}", " ", exp_line)
+    exp_dt = datetime.strptime(exp_norm, "%b %d %H:%M:%S %Y %Z").replace(
+        tzinfo=timezone.utc
+    )
+    now = datetime.now(timezone.utc)
+    return int((exp_dt - now).total_seconds() // 86400), exp_dt
+
+
+# ========================= REPAIRS ============================== #
+def repair_dns(pub_ip: str) -> bool:
+    """
+    Met à jour DuckDNS pour pointer vers pub_ip.
+    DUCKDNS_DOMAIN: sans .duckdns.org (ex: 'plex-robert')
+    DUCKDNS_TOKEN: token DuckDNS
+    """
+    if not DUCKDNS_DOMAIN or not DUCKDNS_TOKEN:
+        msg = "DNS repair failed: missing DUCKDNS_DOMAIN or DUCKDNS_TOKEN"
+        fail(msg)
+        return False
+    try:
+        url = f"https://www.duckdns.org/update?domains={DUCKDNS_DOMAIN}&token={DUCKDNS_TOKEN}&ip={pub_ip}"
+        with urllib.request.urlopen(url, timeout=8) as r:
+            body = r.read().decode().strip().upper()
+            if "OK" in body:
+                ok(
+                    f"[REPAIR][DNS_MATCH] Updated DuckDNS {DUCKDNS_DOMAIN}.duckdns.org -> {pub_ip}"
+                )
+                _discord_send(
+                    f"✅ DNS repaired: {DUCKDNS_DOMAIN}.duckdns.org now points to {pub_ip}"
+                )
+                return True
+            else:
+                msg = f"[REPAIR][DNS_MATCH] DuckDNS update failed: {body}"
+                fail(msg)
+                return False
+    except Exception as e:
+        fail(f"[REPAIR][DNS_MATCH] Exception: {e}")
+        return False
+
+
+def repair_generic(test_key: str):
+    """Message pro pour réparations non implémentées."""
+    msg = f"Repair not possible for {test_key} (not implemented yet)."
+    info(msg)
+    _discord_send(f"⚠️ {msg}")
+
+
+# ============================ TESTS ============================= #
 def test_preflight(results):
     header("Preflight")
     _discord_send("🔍 **plex_online**: starting health checks.")
     ok_all = True
+
     for b in ("docker", "curl"):
         if not require(b):
             fail(f"Missing required host binary: {b}")
@@ -232,6 +293,7 @@ def test_preflight(results):
         else:
             warn(f"Plex container '{PLEX_CONTAINER}' not running.")
 
+    # Quick upstream probe to your fallback (local Plex)
     url = f"http://{UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}/identity"
     rc, out, _ = run(
         [
@@ -374,15 +436,6 @@ def test_dns_match(results):
     return match
 
 
-def parse_notafter_to_days(exp_line):
-    exp_norm = re.sub(r"\s{2,}", " ", exp_line)
-    exp_dt = datetime.strptime(exp_norm, "%b %d %H:%M:%S %Y %Z").replace(
-        tzinfo=timezone.utc
-    )
-    now = datetime.now(timezone.utc)
-    return int((exp_dt - now).total_seconds() // 86400), exp_dt
-
-
 def test_cert_expiry(results):
     header("Check certificate files and expiration")
     rc1, _, _ = docker_exec(
@@ -498,35 +551,82 @@ def test_https_external(results):
     return False
 
 
-# --------------------------- CLI / repair glue --------------------------- #
+# ====================== REPAIR ORCHESTRATION ==================== #
 def _parse_args():
-    p = argparse.ArgumentParser(description="Plex + Nginx health checks")
-    p.add_argument("--json", action="store_true", help="print results as JSON")
-    p.add_argument(
-        "--apply", action="store_true", help="forward --apply to repair script"
+    p = argparse.ArgumentParser(
+        description="Plex + Nginx health checks (DNS repair inline)"
     )
-    p.add_argument("--mode", choices=["never", "on-fail", "always"], default=MODE_AUTO)
-    p.add_argument("--always", action="store_true")
-    p.add_argument("--allow-repairs", default=ALLOW_REPAIRS_ENV)
-    p.add_argument("--deny-repairs", default=DENY_REPAIRS_ENV)
-    p.add_argument("--repair-script", default=REPAIR_SCRIPT_ENV)
+    p.add_argument(
+        "--repair",
+        choices=["never", "on-fail", "always"],
+        default="never",
+        help="when to attempt repairs (default: never)",
+    )
     return p.parse_args()
 
 
-def _filter_tests_for_repair(failing_tests, allow_csv, deny_csv):
-    allow = (
-        {t.strip() for t in allow_csv.split(",") if t.strip()} if allow_csv else set()
-    )
-    deny = {t.strip() for t in deny_csv.split(",") if t.strip()} if deny_csv else set()
-    chosen = list(failing_tests)
-    if allow:
-        chosen = [t for t in chosen if t in allow]
-    if deny:
-        chosen = [t for t in chosen if t not in deny]
-    return chosen
+def _collect_failures(results):
+    """DNS_MATCH est critique au même titre que les autres tests."""
+    failures = []
+    for k in TESTS:
+        if results.get(k) is False:
+            failures.append(k)
+    return failures
 
 
-def _call_repair(script_path, tests, apply_flag):
-    if not tests:
-        warn("No tests selected for repair.")
+def _run_repairs(mode: str, failed_tests, results):
+    """Réparations intégrées : DNS_MATCH seulement. Le reste = notice pro."""
+    if mode == "never":
         return
+
+    # always => tenter même si pas de fails; ici seul DNS a une implémentation
+    targets = failed_tests if mode == "on-fail" else (failed_tests or ["DNS_MATCH"])
+
+    for t in targets:
+        if t == "DNS_MATCH":
+            pub = results.get("_pub_ip", "") or get_public_ip()
+            if not pub:
+                fail("DNS repair aborted: cannot determine public IP.")
+                continue
+            repaired = repair_dns(pub)
+            if not repaired:
+                # déjà loggé dans repair_dns
+                pass
+        else:
+            repair_generic(t)
+
+
+# ============================== MAIN ============================ #
+def main():
+    args = _parse_args()
+
+    results = {}
+
+    # Ordre important (DNS avant HTTPS pour cohérence logs)
+    test_preflight(results)
+    test_conf_present(results)
+    test_nginx_t(results)
+    host, port = extract_upstream()
+    results["UPSTREAM_FROM_CONF"] = True
+    test_upstream(results, host, port)
+    test_dns_match(results)
+    test_cert_expiry(results)
+    test_https_external(results)
+
+    failing = _collect_failures(results)
+
+    if not failing:
+        ok("All critical checks passed.")
+        _discord_send("🟢 **plex_online**: all critical checks passed.")
+    else:
+        fail("One or more checks failed: " + ", ".join(failing))
+        _discord_send(f"🔴 **plex_online**: failing tests → {', '.join(failing)}")
+
+    _run_repairs(args.repair, failing, results)
+
+    # code de sortie
+    sys.exit(0 if not failing else 2)
+
+
+if __name__ == "__main__":
+    main()
