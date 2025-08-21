@@ -24,6 +24,18 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 
+# --- Load .env early (must be before any os.environ reads) ---
+try:
+    from dotenv import load_dotenv
+
+    for _p in (".env", "../.env", "../../.env", "../../../.env", "/app/.env"):
+        _abs = os.path.abspath(os.path.join(os.path.dirname(__file__), _p))
+        if os.path.isfile(_abs):
+            load_dotenv(_abs)
+            break
+except Exception:
+    pass
+
 # =========================== SETTINGS =========================== #
 CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
 PLEX_CONTAINER = os.environ.get("PLEX_CONTAINER", "plex-server")
@@ -44,16 +56,29 @@ WARN_DAYS = int(os.environ.get("WARN_DAYS", "15"))
 
 # DNS repair env
 DUCKDNS_DOMAIN = os.environ.get("DUCKDNS_DOMAIN", "").strip()
-DUCKDNS_TOKEN  = os.environ.get("DUCKDNS_TOKEN", "").strip()
+DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 
-# auto-deduction if missing
+# Auto‑déduction du sous‑domaine DuckDNS si absent (ex: 'plex-robert' depuis 'plex-robert.duckdns.org')
 if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
-    DUCKDNS_DOMAIN = DOMAIN.replace("https://","").replace("http://","").split("/")[0]
-    DUCKDNS_DOMAIN = DUCKDNS_DOMAIN.replace(".duckdns.org","")
-
+    DUCKDNS_DOMAIN = DOMAIN.split(".duckdns.org", 1)[0]
 
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
+
+
+# --- Sanity logs (token masqué) ---
+def _mask(s: str, keep: int = 4) -> str:
+    if not s:
+        return "(empty)"
+    return s[:keep] + "…" if len(s) > keep else "…"
+
+
+print(f"[INFO] DOMAIN={DOMAIN}")
+print(f"[INFO] DUCKDNS_DOMAIN={DUCKDNS_DOMAIN or '(auto-deduction failed)'}")
+print(f"[INFO] DUCKDNS_TOKEN={_mask(DUCKDNS_TOKEN)}")
+if DISCORD_WEBHOOK:
+    print("[INFO] DISCORD_WEBHOOK set")
+
 
 # Liste ordonnée des tests
 TESTS = [
