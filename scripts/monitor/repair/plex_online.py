@@ -10,6 +10,7 @@ USAGE
   python3 plex_online.py --repair on-fail
   python3 plex_online.py --repair always
   python3 plex_online.py --repair never
+  python3 plex_online.py --repair on-fail --discord
 """
 
 import argparse
@@ -67,9 +68,11 @@ DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
     DUCKDNS_DOMAIN = DOMAIN.split(".duckdns.org", 1)[0]
 
-
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
+
+# Flag global activé par --discord (par défaut: off)
+DISCORD_ENABLED = False
 
 
 # --- Sanity logs (token masqué) ---
@@ -83,7 +86,7 @@ print(f"[INFO] DOMAIN={DOMAIN}")
 print(f"[INFO] DUCKDNS_DOMAIN={DUCKDNS_DOMAIN or '(auto-deduction failed)'}")
 print(f"[INFO] DUCKDNS_TOKEN={_mask(DUCKDNS_TOKEN)}")
 if DISCORD_WEBHOOK:
-    print("[INFO] DISCORD_WEBHOOK set")
+    print("[INFO] DISCORD_WEBHOOK set (disabled unless --discord)")
 
 
 # Liste ordonnée des tests
@@ -113,7 +116,7 @@ TEST_LABELS = {
 
 # ======================== UI / LOG HELPERS ====================== #
 def _discord_send(msg: str):
-    if not DISCORD_WEBHOOK:
+    if not DISCORD_ENABLED or not DISCORD_WEBHOOK:
         return
     try:
         r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=10)
@@ -129,6 +132,9 @@ def _results_success():
 
 
 def _results_failed_list(failing_keys, results):
+    # Liste agrégée des échecs
+    if not failing_keys:
+        return
     lines = ["[Results] Failed tests:"]
     for k in failing_keys:
         label = TEST_LABELS.get(k, k)
@@ -324,9 +330,7 @@ def repair_dns(pub_ip: str) -> bool:
         with urllib.request.urlopen(url, timeout=8) as r:
             body = r.read().decode().strip().upper()
             if "OK" in body:
-                ok(
-                    f"[REPAIR][DNS_MATCH] Updated DuckDNS {DUCKDNS_DOMAIN}.duckdns.org -> {pub_ip}"
-                )
+                ok(f"[REPAIR][DNS_MATCH] Updated DuckDNS {DUCKDNS_DOMAIN}.duckdns.org -> {pub_ip}")
                 return True
             else:
                 fail(f"[REPAIR][DNS_MATCH] DuckDNS update failed: {body}")
@@ -380,16 +384,12 @@ def test_preflight(results):
         ]
     )
     if rc == 0 and out.strip() == "200":
-        ok(
-            f"Plex fallback upstream replied 200 on /identity ({UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT})."
-        )
+        ok(f"Plex fallback upstream replied 200 on /identity ({UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}).")
     else:
         warn(f"Fallback Plex upstream test failed at {url} (code {out or 'n/a'}).")
 
     if not ok_all:
-        results["_reason_PREFLIGHT"] = (
-            "preflight checks failed (missing binaries or containers down)"
-        )
+        results["_reason_PREFLIGHT"] = "preflight checks failed (missing binaries or containers down)"
 
     results["PREFLIGHT"] = ok_all
     return ok_all
@@ -440,9 +440,7 @@ def extract_upstream():
     )
     url = out.strip() if rc == 0 else ""
     if not url:
-        warn(
-            f"No proxy_pass found. Using fallback {UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}"
-        )
+        warn(f"No proxy_pass found. Using fallback {UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}")
         return (UPSTREAM_FALLBACK_HOST, UPSTREAM_FALLBACK_PORT)
 
     no_scheme = re.sub(r"^https?://", "", url)
@@ -476,9 +474,7 @@ def test_upstream(results, host, port):
         return True
     fail(f"Plex upstream test failed (HTTP {out or 'n/a'}).")
     results["PLEX_UPSTREAM"] = False
-    results["_reason_PLEX_UPSTREAM"] = (
-        f"HTTP {out or 'n/a'} from upstream {host}:{port}/identity"
-    )
+    results["_reason_PLEX_UPSTREAM"] = f"HTTP {out or 'n/a'} from upstream {host}:{port}/identity"
     return False
 
 
@@ -511,9 +507,7 @@ def test_dns_match(results):
     if match:
         ok(f"DuckDNS resolves to current public IP: {pub_ip}")
     else:
-        fail(
-            f"DuckDNS does not match current public IP ({pub_ip}); resolved={sorted(ips)}"
-        )
+        fail(f"DuckDNS does not match current public IP ({pub_ip}); resolved={sorted(ips)}")
         results["_reason_DNS_MATCH"] = f"resolved={sorted(ips)}, public={pub_ip}"
 
     results["DNS_MATCH"] = match
@@ -523,12 +517,8 @@ def test_dns_match(results):
 
 def test_cert_expiry(results):
     header("Check certificate files and expiration")
-    rc1, _, _ = docker_exec(
-        ["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/fullchain.pem"]
-    )
-    rc2, _, _ = docker_exec(
-        ["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/privkey.pem"]
-    )
+    rc1, _, _ = docker_exec(["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/fullchain.pem"])
+    rc2, _, _ = docker_exec(["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/privkey.pem"])
     if rc1 == 0 and rc2 == 0:
         ok(f"Found cert files under {LE_PATH} (fullchain.pem & privkey.pem).")
     else:
@@ -541,19 +531,13 @@ def test_cert_expiry(results):
     has_in = docker_exec(["sh", "-lc", "command -v openssl >/dev/null 2>&1"])[0] == 0
     if has_in:
         rc, out, _ = docker_exec(
-            [
-                "sh",
-                "-lc",
-                f"openssl x509 -enddate -noout -in {shlex.quote(LE_PATH)}/fullchain.pem | cut -d= -f2",
-            ]
+            ["sh", "-lc", f"openssl x509 -enddate -noout -in {shlex.quote(LE_PATH)}/fullchain.pem | cut -d= -f2"]
         )
         if rc == 0 and out.strip():
             exp_line = out.strip()
 
     if not exp_line and shutil.which("openssl"):
-        rc, pem, _ = docker_exec(
-            ["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"]
-        )
+        rc, pem, _ = docker_exec(["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"])
         if rc == 0 and pem:
             p = subprocess.run(
                 ["openssl", "x509", "-enddate", "-noout"],
@@ -638,9 +622,7 @@ def test_https_external(results):
 
     fail(f"No HTTPS answer (code '{code or 'timeout'}').")
     results["HTTPS_EXTERNAL"] = False
-    results["_reason_HTTPS_EXTERNAL"] = (
-        f"https://{DOMAIN} no valid HTTP answer via --resolve ({code or 'timeout'})"
-    )
+    results["_reason_HTTPS_EXTERNAL"] = f"https://{DOMAIN} no valid HTTP answer via --resolve ({code or 'timeout'})"
     return False
 
 
@@ -654,6 +636,11 @@ def _parse_args():
         choices=["never", "on-fail", "always"],
         default="never",
         help="when to attempt repairs (default: never)",
+    )
+    p.add_argument(
+        "--discord",
+        action="store_true",
+        help="enable Discord notifications (default: disabled)",
     )
     return p.parse_args()
 
@@ -720,6 +707,8 @@ def _run_repairs(mode: str, failed_tests, results):
 # ============================== MAIN ============================ #
 def main():
     args = _parse_args()
+    global DISCORD_ENABLED
+    DISCORD_ENABLED = args.discord  # active l’envoi seulement si --discord
 
     results = {}
 
@@ -736,11 +725,10 @@ def main():
 
     failing = _collect_failures(results)
 
-    # === Discord: Résultats ===
+    # === Discord: Résultats (selon --discord) ===
     if not failing and results.get("HTTPS_EXTERNAL", True):
         _results_success()
     else:
-        # Liste agrégée des tests en échec
         _results_failed_list(failing, results)
 
     # Réparations (après envoi du résumé)
