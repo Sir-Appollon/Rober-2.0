@@ -23,6 +23,8 @@ import subprocess
 import sys
 import urllib.request
 from datetime import datetime, timezone
+import requests
+
 
 # --- Load .env early (must be before any os.environ reads) ---
 ENV_PATH_USED = None
@@ -99,18 +101,17 @@ TESTS = [
 
 # ======================== UI / LOG HELPERS ====================== #
 def _discord_send(msg: str):
-    """Envoie un message au webhook Discord (silence si non configuré)."""
     if not DISCORD_WEBHOOK:
         return
     try:
-        data = json.dumps({"content": msg[:1900]}).encode("utf-8")
-        req = urllib.request.Request(
-            DISCORD_WEBHOOK, data=data, headers={"Content-Type": "application/json"}
-        )
-        with urllib.request.urlopen(req, timeout=5):
-            pass
-    except Exception:
-        pass  # ne jamais faire échouer le script pour Discord
+        r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=10)
+        # Discord renvoie 204 No Content en cas de succès
+        if r.status_code != 204:
+            # log console discret en cas de souci (pas d’envoi Discord ici)
+            print(f"[WARN] Discord webhook HTTP {r.status_code}")
+    except Exception as e:
+        # log console discret (évite de faire échouer le script)
+        print(f"[WARN] Discord webhook exception: {e}")
 
 
 def _color(tag, msg):
