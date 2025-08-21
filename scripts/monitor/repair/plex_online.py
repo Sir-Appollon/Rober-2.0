@@ -25,16 +25,19 @@ import urllib.request
 from datetime import datetime, timezone
 
 # --- Load .env early (must be before any os.environ reads) ---
+ENV_PATH_USED = None
 try:
     from dotenv import load_dotenv
 
     for _p in (".env", "../.env", "../../.env", "../../../.env", "/app/.env"):
         _abs = os.path.abspath(os.path.join(os.path.dirname(__file__), _p))
         if os.path.isfile(_abs):
-            load_dotenv(_abs)
+            load_dotenv(_abs, override=True)  # <-- IMPORTANT
+            ENV_PATH_USED = _abs
             break
 except Exception:
     pass
+
 
 # =========================== SETTINGS =========================== #
 CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
@@ -61,6 +64,19 @@ DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 # Auto‑déduction du sous‑domaine DuckDNS si absent (ex: 'plex-robert' depuis 'plex-robert.duckdns.org')
 if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
     DUCKDNS_DOMAIN = DOMAIN.split(".duckdns.org", 1)[0]
+
+
+def _mask(s: str, keep: int = 4) -> str:
+    if not s:
+        return "(empty)"
+    return s[:keep] + "…" if len(s) > keep else "…"
+
+
+print(f"[INFO] .env used: {ENV_PATH_USED or '(none)'}")
+print(f"[INFO] DOMAIN={DOMAIN}")
+print(f"[INFO] DUCKDNS_DOMAIN={DUCKDNS_DOMAIN or '(auto-deduction failed)'}")
+print(f"[INFO] DUCKDNS_TOKEN={_mask(DUCKDNS_TOKEN)}")
+
 
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
