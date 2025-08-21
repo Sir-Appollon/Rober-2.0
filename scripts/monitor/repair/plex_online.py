@@ -43,10 +43,14 @@ SIMULATE_EXTERNAL = os.environ.get("SIMULATE_EXTERNAL", "1") == "1"
 WARN_DAYS = int(os.environ.get("WARN_DAYS", "15"))
 
 # DNS repair env
-DUCKDNS_DOMAIN = os.environ.get(
-    "DUCKDNS_DOMAIN", ""
-).strip()  # ex: "plex-robert" (sans .duckdns.org)
-DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
+DUCKDNS_DOMAIN = os.environ.get("DUCKDNS_DOMAIN", "").strip()
+DUCKDNS_TOKEN  = os.environ.get("DUCKDNS_TOKEN", "").strip()
+
+# auto-deduction if missing
+if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
+    DUCKDNS_DOMAIN = DOMAIN.replace("https://","").replace("http://","").split("/")[0]
+    DUCKDNS_DOMAIN = DUCKDNS_DOMAIN.replace(".duckdns.org","")
+
 
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
