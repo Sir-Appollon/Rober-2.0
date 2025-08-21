@@ -98,6 +98,18 @@ TESTS = [
     "HTTPS_EXTERNAL",
 ]
 
+# Labels lisibles pour la sortie Discord (failed list)
+TEST_LABELS = {
+    "PREFLIGHT": "Preflight",
+    "CONF_PRESENT": "Nginx config presence",
+    "NGINX_TEST": "Nginx syntax test",
+    "UPSTREAM_FROM_CONF": "Upstream extraction",
+    "PLEX_UPSTREAM": "Plex upstream /identity",
+    "DNS_MATCH": "DNS matches public IP",
+    "CERT_EXPIRY": "TLS certificate validity",
+    "HTTPS_EXTERNAL": "HTTPS external access",
+}
+
 
 # ======================== UI / LOG HELPERS ====================== #
 def _discord_send(msg: str):
@@ -107,11 +119,45 @@ def _discord_send(msg: str):
         r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=10)
         # Discord renvoie 204 No Content en cas de succès
         if r.status_code != 204:
-            # log console discret en cas de souci (pas d’envoi Discord ici)
             print(f"[WARN] Discord webhook HTTP {r.status_code}")
     except Exception as e:
-        # log console discret (évite de faire échouer le script)
         print(f"[WARN] Discord webhook exception: {e}")
+
+
+def _results_success():
+    _discord_send("[Results] Test passed: Plex online.")
+
+
+def _results_failed_list(failing_keys, results):
+    lines = ["[Results] Failed tests:"]
+    for k in failing_keys:
+        label = TEST_LABELS.get(k, k)
+        reason = results.get(f"_reason_{k}")
+        if reason:
+            lines.append(f"- {label}: {reason}")
+        else:
+            lines.append(f"- {label}")
+    _discord_send("\n".join(lines))
+
+
+def _repair_available(action: str, why: str):
+    _discord_send(f"[Repair] Repair available: {action} — reason: {why}")
+
+
+def _repair_not_available(issue: str):
+    _discord_send(f"[Repair] Repair not available: {issue} — no automated fix")
+
+
+def _repair_launch(action: str):
+    _discord_send(f"[Repair] Launch: {action}")
+
+
+def _repair_success(action: str):
+    _discord_send(f"[Repair] Success: {action}")
+
+
+def _repair_fail(action: str, detail: str):
+    _discord_send(f"[Repair] Fail: {action} — error: {detail}")
 
 
 def _color(tag, msg):
@@ -135,12 +181,10 @@ def ok(m):
 
 
 def warn(m):
-    # Console only, pas d'envoi Discord
     print(_color("WARN", "[WARN] "), m)
 
 
 def fail(m):
-    # Console only, pas d'envoi Discord
     print(_color("FAIL", "[FAIL] "), m)
 
 
@@ -273,8 +317,7 @@ def repair_dns(pub_ip: str) -> bool:
     DUCKDNS_TOKEN: token DuckDNS
     """
     if not DUCKDNS_DOMAIN or not DUCKDNS_TOKEN:
-        msg = "DNS repair failed: missing DUCKDNS_DOMAIN or DUCKDNS_TOKEN"
-        fail(msg)
+        fail("DNS repair failed: missing DUCKDNS_DOMAIN or DUCKDNS_TOKEN")
         return False
     try:
         url = f"https://www.duckdns.org/update?domains={DUCKDNS_DOMAIN}&token={DUCKDNS_TOKEN}&ip={pub_ip}"
@@ -286,8 +329,7 @@ def repair_dns(pub_ip: str) -> bool:
                 )
                 return True
             else:
-                msg = f"[REPAIR][DNS_MATCH] DuckDNS update failed: {body}"
-                fail(msg)
+                fail(f"[REPAIR][DNS_MATCH] DuckDNS update failed: {body}")
                 return False
     except Exception as e:
         fail(f"[REPAIR][DNS_MATCH] Exception: {e}")
@@ -295,15 +337,14 @@ def repair_dns(pub_ip: str) -> bool:
 
 
 def repair_generic(test_key: str):
-    """Message pro pour réparations non implémentées (console only)."""
-    msg = f"Repair not possible for {test_key} (not implemented yet)."
-    info(msg)
+    """Message pro pour réparations non implémentées (console + Discord 'not available')."""
+    label = TEST_LABELS.get(test_key, test_key)
+    _repair_not_available(label)
 
 
 # ============================ TESTS ============================= #
 def test_preflight(results):
     header("Preflight")
-    # Pas d'envoi Discord ici (résumé en fin de run uniquement)
     ok_all = True
 
     for b in ("docker", "curl"):
@@ -347,7 +388,7 @@ def test_preflight(results):
 
     if not ok_all:
         results["_reason_PREFLIGHT"] = (
-            "preflight checks failed (binaires manquants ou containers down)"
+            "preflight checks failed (missing binaries or containers down)"
         )
 
     results["PREFLIGHT"] = ok_all
@@ -384,7 +425,7 @@ def test_nginx_t(results):
         return True
     fail(f"nginx -t error:\n{out}\n{err}")
     results["NGINX_TEST"] = False
-    results["_reason_NGINX_TEST"] = "nginx -t error (voir logs)"
+    results["_reason_NGINX_TEST"] = "nginx -t error (see logs)"
     return False
 
 
@@ -626,8 +667,34 @@ def _collect_failures(results):
     return failures
 
 
+def _announce_availability_for_all(failed_tests, results, mode: str):
+    """
+    Envoie les messages [Repair] 'available' / 'not available' selon le test et le mode.
+    - DNS_MATCH : available (raison = _reason_DNS_MATCH) si échec ou mode=always
+    - autres    : not available
+    """
+    # DNS available?
+    dns_reason = results.get("_reason_DNS_MATCH", "DNS does not match public IP")
+    if "DNS_MATCH" in failed_tests or mode == "always":
+        _repair_available("Update DuckDNS IP", dns_reason)
+
+    # For all non-DNS failed tests, mark as not available
+    for t in failed_tests:
+        if t != "DNS_MATCH":
+            label = TEST_LABELS.get(t, t)
+            _repair_not_available(label)
+
+
 def _run_repairs(mode: str, failed_tests, results):
-    """Réparations intégrées : DNS_MATCH seulement. Envoi Discord selon statut."""
+    """
+    Réparations intégrées : DNS_MATCH seulement.
+    - 'never'  : annonce availability/not-available, pas de lancement.
+    - 'on-fail': lance DNS si dans failed_tests.
+    - 'always' : tente DNS même sans échec.
+    """
+    # Annonce disponibilité / indisponibilité (toujours utile pour visibilité)
+    _announce_availability_for_all(failed_tests, results, mode)
+
     if mode == "never":
         return
 
@@ -638,17 +705,15 @@ def _run_repairs(mode: str, failed_tests, results):
         if t == "DNS_MATCH":
             pub = results.get("_pub_ip", "") or get_public_ip()
             if not pub:
-                fail("DNS repair aborted: cannot determine public IP.")
-                _discord_send("Réparation non succès (DNS): IP publique introuvable")
+                _repair_fail("Update DuckDNS IP", "public IP unavailable")
                 continue
-            _discord_send("Réparation disponible (DNS), lancement…")
+            _repair_launch("Update DuckDNS IP")
             repaired = repair_dns(pub)
             if repaired:
-                _discord_send("Réparation réussie (DNS)")
+                _repair_success("Update DuckDNS IP")
             else:
-                _discord_send("Réparation non succès (DNS)")
+                _repair_fail("Update DuckDNS IP", "provider rejected or network error")
         else:
-            # Pas de réparation pour les autres tests (console only)
             repair_generic(t)
 
 
@@ -671,17 +736,12 @@ def main():
 
     failing = _collect_failures(results)
 
-    # === Discord: résumé + raisons ===
-    if not failing:
-        ok("All critical checks passed.")
-        _discord_send("Test réussi")
+    # === Discord: Résultats ===
+    if not failing and results.get("HTTPS_EXTERNAL", True):
+        _results_success()
     else:
-        fail("One or more checks failed: " + ", ".join(failing))
-        lines = []
-        for t in failing:
-            reason = results.get(f"_reason_{t}", "voir logs")
-            lines.append(f"- {t}: {reason}")
-        _discord_send("Test raté, pq …\n" + "\n".join(lines))
+        # Liste agrégée des tests en échec
+        _results_failed_list(failing, results)
 
     # Réparations (après envoi du résumé)
     _run_repairs(args.repair, failing, results)
