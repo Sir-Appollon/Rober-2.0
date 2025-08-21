@@ -348,7 +348,18 @@ def should_run_plex_online_test(force=False):
         print("[DECISION] Test Plex forcé → True")
         return True
     state = load_alert_state()
-    status = state.get("plex_external_status")  # "online" | "offline" | None
+
+    # Source de vérité : clé imbriquée (monitor.py)
+    nested = (state.get("plex_external") or {}).get("status")
+    flat = state.get("plex_external_status")
+    status = nested or flat  # préfère l’imbriqué si présent
+
+    # (optionnel) si contradictions, on répare le JSON pour l’aligner
+    if nested and flat and nested != flat:
+        state["plex_external_status"] = nested
+        save_alert_state(state)
+        print(f"[FIX] Harmonized plex_external_status -> {nested}")
+
     now = time.time()
     last = state.get("plex_last_test_ts", 0)
     print(f"[DECISION] plex_external_status={status}, now={now}, last={last}, cooldown={PLEX_TEST_COOLDOWN}")
@@ -360,6 +371,7 @@ def should_run_plex_online_test(force=False):
         return False
     print("[DECISION] Conditions réunies → lancer test Plex")
     return True
+
 
 def resolve_plex_online_cmd():
     script = resolve_plex_online_script()

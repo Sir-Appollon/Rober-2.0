@@ -136,6 +136,8 @@ def check_plex_external(data, state):
                     send_discord_message("[ALERT - initial] Plex appears offline from outside (after consecutive failures).")
 
     state["plex_external"] = node
+    state["plex_external_status"] = node["status"]  # miroir pour repair.py
+
 
 
 def check_deluge(data, state):
