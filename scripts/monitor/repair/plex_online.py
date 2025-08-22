@@ -1,657 +1,753 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-repair.py — Orchestrateur de santé/réparation
+plex_online.py
+Health checks for Plex + Nginx (Docker). DNS repair is implemented inline.
+Other repairs are not implemented yet (logs + Discord notice only).
 
-- Charge .env de façon robuste
-- Peut vérifier/réparer Deluge (interfaces VPN)
-- Peut lancer le test Plex externe (plex_online.py)
-- Écrit/relit /mnt/data/alert_state.json pour l'état (offline/online) + cooldown
-
-Nouveauté:
-- Auto-déclenchement du test Plex si alert_state.json indique 'offline'
-  même SANS --plex-online (optionnellement avec force si souhaité).
-
-Ajouts:
-- Lancement direct de ip_adress_up.py avec:
-    --deluge-ip-up            → met à jour core.conf si nécessaire (mode on-fail par défaut)
-    --deluge-ip-force         → redémarre Deluge même sans changement
-    --ip-mode X / --ip-always → passe le mode à ip_adress_up.py (override MODE_AUTO)
-    --ip-dry-run              → ne rien écrire; seulement afficher le plan
-
-- RELAIS des options vers plex_online.py:
-    --plex-repair-mode (never|on-fail|always)  → passe --repair X
-    --plex-discord                             → passe --discord
-  En AUTO (sans flag), on peut relayer depuis l'env:
-    MODE_AUTO=never|on-fail|always
-    PLEX_ONLINE_DISCORD=1 (pour forcer --discord)
-
-- Fallback automatique si plex_online.py renvoie exit=2 (argparse) :
-    essaie successivement: "--repair <mode>" → "--repair" → "--mode <mode>" → (sans arg)
+USAGE
+  python3 plex_online.py
+  python3 plex_online.py --repair on-fail
+  python3 plex_online.py --repair always
+  python3 plex_online.py --repair never
 """
 
+import argparse
 import json
-import subprocess
 import os
 import re
-import time
-import importlib.util
-import argparse
-from pathlib import Path
+import shlex
+import shutil
+import socket
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+import requests
 
 
-# ---------- Chargement .env robuste (avec ou sans python-dotenv) ----------
-def _simple_parse_env(path: Path) -> dict:
-    env = {}
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line)
-            if not m:
-                continue
-            k, v = m.group(1), m.group(2)
-            if (v.startswith('"') and v.endswith('"')) or (
-                v.startswith("'") and v.endswith("'")
-            ):
-                v = v[1:-1]
-            env[k] = v
-    except Exception:
-        pass
-    return env
+# --- Load .env early (must be before any os.environ reads) ---
+ENV_PATH_USED = None
+try:
+    from dotenv import load_dotenv
 
-
-def _try_load_with_dotenv(dotenv_path: Path) -> bool:
-    try:
-        from dotenv import load_dotenv  # type: ignore
-    except Exception:
-        return False
-    try:
-        return load_dotenv(dotenv_path.as_posix())
-    except Exception:
-        return False
-
-
-def _set_env_from_dict(d: dict):
-    for k, v in d.items():
-        if k not in os.environ:
-            os.environ[k] = v
-
-
-def _search_upwards_for_env(start: Path, max_levels: int = 8):
-    cur = start.resolve()
-    for _ in range(max_levels):
-        cand = cur / ".env"
-        if cand.is_file():
-            return cand
-        if cur.parent == cur:
+    for _p in ("../../../.env", "/app/.env"):
+        _abs = os.path.abspath(os.path.join(os.path.dirname(__file__), _p))
+        if os.path.isfile(_abs):
+            load_dotenv(_abs, override=True)  # <-- IMPORTANT
+            ENV_PATH_USED = _abs
             break
-        cur = cur.parent
-    return None
+except Exception:
+    pass
 
 
-def load_env_robust():
-    base_dir = Path(__file__).resolve().parent
-    candidates = []
+# =========================== SETTINGS =========================== #
+CONTAINER = os.environ.get("CONTAINER", "nginx-proxy")
+PLEX_CONTAINER = os.environ.get("PLEX_CONTAINER", "plex-server")
 
-    root = os.environ.get("ROOT")
-    if root:
-        candidates.append(Path(root) / ".env")
+# Normalise DOMAIN (tolère https:// et /path)
+DOMAIN_RAW = os.environ.get("DOMAIN", "plex-robert.duckdns.org")
+DOMAIN = re.sub(r"^https?://", "", DOMAIN_RAW).split("/")[0]
 
-    candidates.append((base_dir / Path("../../../.env")).resolve())
+CONF_PATH = os.environ.get("CONF_PATH", "/etc/nginx/conf.d/plex.conf")
+LE_PATH = os.environ.get("LE_PATH", f"/etc/letsencrypt/live/{DOMAIN}")
 
-    f1 = _search_upwards_for_env(base_dir, 10)
-    if f1:
-        candidates.append(f1)
+UPSTREAM_FALLBACK_HOST = os.environ.get("UPSTREAM_FALLBACK_HOST", "192.168.3.39")
+UPSTREAM_FALLBACK_PORT = os.environ.get("UPSTREAM_FALLBACK_PORT", "32400")
 
-    f2 = _search_upwards_for_env(Path.cwd(), 10)
-    if f2:
-        candidates.append(f2)
+CURL_TIMEOUT = int(os.environ.get("CURL_TIMEOUT", "10"))
+SIMULATE_EXTERNAL = os.environ.get("SIMULATE_EXTERNAL", "1") == "1"
+WARN_DAYS = int(os.environ.get("WARN_DAYS", "15"))
 
-    uniq = []
-    seen = set()
-    for p in candidates:
-        try:
-            rp = p.resolve()
-        except Exception:
-            rp = p
-        if rp not in seen:
-            seen.add(rp)
-            uniq.append(rp)
+# DNS repair env
+DUCKDNS_DOMAIN = os.environ.get("DUCKDNS_DOMAIN", "").strip()
+DUCKDNS_TOKEN = os.environ.get("DUCKDNS_TOKEN", "").strip()
 
-    for dotenv_path in uniq:
-        if dotenv_path and dotenv_path.is_file():
-            if _try_load_with_dotenv(dotenv_path):
-                print(f"[INFO] .env chargé (python-dotenv): {dotenv_path}")
-                return
-            parsed = _simple_parse_env(dotenv_path)
-            if parsed:
-                _set_env_from_dict(parsed)
-                print(f"[INFO] .env chargé (parser interne): {dotenv_path}")
-                return
-    print("[INFO] Aucun .env trouvé/chargé (ou fichier vide).")
+# Auto-déduction du sous-domaine DuckDNS si absent (ex: 'plex-robert' depuis 'plex-robert.duckdns.org')
+if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
+    DUCKDNS_DOMAIN = DOMAIN.split(".duckdns.org", 1)[0]
 
 
-load_env_robust()
-
-# ---------- Constantes & chemins ----------
-ALERT_STATE_FILE = "/mnt/data/alert_state.json"  # côté Docker (monté)
-CONFIG_PATH = "/app/config/deluge/core.conf"  # côté Docker
-
-# Cooldown (en secondes) entre deux tests Plex (évite les boucles)
-PLEX_TEST_COOLDOWN = int(os.environ.get("PLEX_TEST_COOLDOWN", "300"))
-
-# Si tu veux forcer l'auto-test même en cooldown (sans --force), mets à "1"
-AUTO_PLEX_FORCE = os.environ.get("AUTO_PLEX_FORCE", "0") == "1"
-
-BASE_DIR = Path(__file__).resolve().parent
-send_discord_message = None
+# Optionnel: webhook Discord
+DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
 
 
-# ---------- Résolution des chemins de scripts appelés ----------
-def _project_root_guess() -> Path | None:
-    """Devine la racine du dépôt (si ROOT non défini)."""
-    if os.environ.get("ROOT"):
-        return Path(os.environ["ROOT"]).resolve()
-    # remonter jusqu'à trouver un dossier 'scripts'
-    cur = BASE_DIR
-    for _ in range(8):
-        if (cur / "scripts").is_dir():
-            return cur
-        if cur.parent == cur:
-            break
-        cur = cur.parent
-    # essai depuis cwd
-    cur = Path.cwd().resolve()
-    for _ in range(8):
-        if (cur / "scripts").is_dir():
-            return cur
-        if cur.parent == cur:
-            break
-        cur = cur.parent
-    return None
+# --- Sanity logs (token masqué) ---
+def _mask(s: str, keep: int = 4) -> str:
+    if not s:
+        return "(empty)"
+    return s[:keep] + "…" if len(s) > keep else "…"
 
 
-def _first_existing(paths):
-    for p in paths:
-        pp = Path(p)
-        if pp.is_file():
-            return pp.resolve()
-    return None
+print(f"[INFO] DOMAIN={DOMAIN}")
+print(f"[INFO] DUCKDNS_DOMAIN={DUCKDNS_DOMAIN or '(auto-deduction failed)'}")
+print(f"[INFO] DUCKDNS_TOKEN={_mask(DUCKDNS_TOKEN)}")
+if DISCORD_WEBHOOK:
+    print("[INFO] DISCORD_WEBHOOK set")
 
 
-def resolve_plex_online_script() -> Path | None:
-    root = _project_root_guess()
-    candidates = [
-        BASE_DIR / "plex_online.py",  # voisin
-        (root / "scripts/tool/plex_online.py") if root else None,  # host
-        Path("/app/tool/plex_online.py"),  # docker bind
-        Path("/app/monitor/repair/plex_online.py"),  # docker voisin
-        Path("/app/repair/plex_online.py"),  # docker core/repair
-    ]
-    return _first_existing([p for p in candidates if p])
+# Liste ordonnée des tests
+TESTS = [
+    "PREFLIGHT",
+    "CONF_PRESENT",
+    "NGINX_TEST",
+    "UPSTREAM_FROM_CONF",
+    "PLEX_UPSTREAM",
+    "DNS_MATCH",
+    "CERT_EXPIRY",
+    "HTTPS_EXTERNAL",
+]
+
+# Labels lisibles pour la sortie Discord (failed list)
+TEST_LABELS = {
+    "PREFLIGHT": "Preflight",
+    "CONF_PRESENT": "Nginx config presence",
+    "NGINX_TEST": "Nginx syntax test",
+    "UPSTREAM_FROM_CONF": "Upstream extraction",
+    "PLEX_UPSTREAM": "Plex upstream /identity",
+    "DNS_MATCH": "DNS matches public IP",
+    "CERT_EXPIRY": "TLS certificate validity",
+    "HTTPS_EXTERNAL": "HTTPS external access",
+}
 
 
-def resolve_deluge_ip_script() -> Path | None:
-    root = _project_root_guess()
-    candidates = [
-        BASE_DIR / "ip_adress_up.py",  # voisin (orthographe 'adress')
-        (root / "scripts/core/repair/ip_adress_up.py") if root else None,  # host
-        Path("/app/repair/ip_adress_up.py"),  # docker bind officiel
-    ]
-    return _first_existing([p for p in candidates if p])
-
-
-# ---------- Discord setup ----------
-def setup_discord():
-    """Charge send_discord_message si dispo."""
-    global send_discord_message
-    root = _project_root_guess()
-    candidates = [
-        BASE_DIR / "discord" / "discord_notify.py",
-        BASE_DIR.parent / "discord" / "discord_notify.py",
-        (root / "scripts/discord/discord_notify.py") if root else None,  # host
-        Path("/app/discord/discord_notify.py"),  # docker
-    ]
-    for p in [c for c in candidates if c]:
-        if p.is_file():
-            try:
-                spec = importlib.util.spec_from_file_location(
-                    "discord_notify", p.as_posix()
-                )
-                mod = importlib.util.module_from_spec(spec)
-                assert spec and spec.loader
-                spec.loader.exec_module(mod)  # type: ignore
-                send_discord_message = getattr(mod, "send_discord_message", None)
-                if send_discord_message:
-                    print(f"[INFO] Discord notify chargé depuis: {p}")
-                    return
-            except Exception as e:
-                print(f"[WARN] Échec chargement Discord notify: {p} -> {e}")
-    print("[INFO] Aucun module Discord trouvé, logs seulement en console.")
-
-
-# ---------- Helpers ----------
-def load_alert_state():
+# ======================== UI / LOG HELPERS ====================== #
+def _discord_send(msg: str):
+    if not DISCORD_WEBHOOK:
+        return
     try:
-        if os.path.exists(ALERT_STATE_FILE):
-            with open(ALERT_STATE_FILE, "r") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {}
+        r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=10)
+        # Discord renvoie 204 No Content en cas de succès
+        if r.status_code != 204:
+            print(f"[WARN] Discord webhook HTTP {r.status_code}")
+    except Exception as e:
+        print(f"[WARN] Discord webhook exception: {e}")
 
 
-def save_alert_state(state):
-    try:
-        with open(ALERT_STATE_FILE, "w") as f:
-            json.dump(state, f)
-    except Exception:
-        pass
+def _results_success():
+    _discord_send("[Results] Test passed: Plex online.")
 
 
-def run_and_send(cmd, title="Task", cwd: Path | None = None):
-    """Exécute une commande, fixe le cwd vers le script cible, log console + Discord."""
-    print(f"[RUN] {title}: {' '.join(cmd)} (cwd={cwd or Path.cwd()})")
-    try:
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None
-        )
-    except FileNotFoundError as e:
-        msg = f"[ERROR] {title} introuvable: {e}"
-        print(msg)
-        if send_discord_message:
-            send_discord_message(msg)
-        return 127
-
-    output = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
-    tail = output[-1800:] if output else "(no output)"
-
-    status = "OK" if res.returncode == 0 else f"ERROR({res.returncode})"
-    print(f"[{status}] {title}\n----- LOG (tail) -----\n{tail}\n----------------------")
-
-    if send_discord_message:
-        if res.returncode == 0:
-            send_discord_message(f"[OK] {title} completed")
+def _results_failed_list(failing_keys, results):
+    lines = ["[Results] Failed tests:"]
+    for k in failing_keys:
+        label = TEST_LABELS.get(k, k)
+        reason = results.get(f"_reason_{k}")
+        if reason:
+            lines.append(f"- {label}: {reason}")
         else:
-            send_discord_message(f"[ERROR] {title} failed (exit={res.returncode}).")
-
-    return res.returncode
-
-
-# ---------- Lanceur Deluge IP updater (ip_adress_up.py) ----------
-def launch_deluge_ip_up(
-    mode: str | None = None, force: bool = False, dry_run: bool = False
-):
-    script = resolve_deluge_ip_script()
-    if not script:
-        print("[ERROR] ip_adress_up.py introuvable.")
-        if send_discord_message:
-            send_discord_message("[ERROR] ip_adress_up.py introuvable.")
-        return 127
-
-    cmd = ["python3", script.as_posix()]
-
-    # Passer le mode à ip_adress_up.py si demandé
-    if mode:
-        if mode == "always":
-            cmd.append("--always")
-        else:
-            cmd += ["--mode", mode]
-
-    # En MODE_AUTO=never côté script, --repair permet d'appliquer en on-fail si besoin
-    if mode in (None, "never"):
-        cmd.append("--repair")
-
-    if force:
-        cmd.append("--force")
-    if dry_run:
-        cmd.append("--dry-run")  # orthographe standard
-
-    if send_discord_message:
-        send_discord_message(f"[ACTION] Lancement ip_adress_up: {' '.join(cmd)}")
-
-    return run_and_send(cmd, "Deluge IP update", cwd=script.parent)
+            lines.append(f"- {label}")
+    _discord_send("\n".join(lines))
 
 
-# ---------- Deluge repair (legacy verify path) ----------
-def get_vpn_internal_ip():
-    print("[INFO] Récupération IP interne VPN (tun0) depuis conteneur 'vpn'…")
-    result = subprocess.run(
-        ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
-        capture_output=True,
-        text=True,
-    )
-    match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
-    if match:
-        ip = match.group(1)
-        print(f"[INFO] IP VPN détectée: {ip}")
-        return ip
-    raise RuntimeError("Aucune IP détectée sur l'interface tun0")
+def _repair_available(action: str, why: str):
+    _discord_send(f"[Repair] Repair available: {action} — reason: {why}")
 
 
-def extract_interface_ips_from_config():
-    print(f"[INFO] Lecture des interfaces dans {CONFIG_PATH}")
-    with open(CONFIG_PATH, "r") as f:
-        content = f.read()
-    listen = re.search(r'"listen_interface"\s*:\s*"([^"]+)"', content)
-    outgoing = re.search(r'"outgoing_interface"\s*:\s*"([^"]+)"', content)
-    ips = {
-        "listen_interface": listen.group(1) if listen else None,
-        "outgoing_interface": outgoing.group(1) if outgoing else None,
+def _repair_not_available(issue: str):
+    _discord_send(f"[Repair] Repair not available: {issue} — no automated fix")
+
+
+def _repair_launch(action: str):
+    _discord_send(f"[Repair] Launch: {action}")
+
+
+def _repair_success(action: str):
+    _discord_send(f"[Repair] Success: {action}")
+
+
+def _repair_fail(action: str, detail: str):
+    _discord_send(f"[Repair] Fail: {action} — error: {detail}")
+
+
+def _color(tag, msg):
+    codes = {
+        "INFO": "\033[1;34m",
+        "OK": "\033[1;32m",
+        "WARN": "\033[1;33m",
+        "FAIL": "\033[1;31m",
+        "HDR": "\033[1;36m",
+        "END": "\033[0m",
     }
-    print(f"[INFO] Interfaces Deluge: {ips}")
-    return ips
+    return f"{codes.get(tag,'')}{msg}{codes['END']}"
 
 
-def verify_interface_consistency():
-    vpn_ip = get_vpn_internal_ip()
-    config_ips = extract_interface_ips_from_config()
-    consistent = (
-        config_ips["listen_interface"] == vpn_ip
-        and config_ips["outgoing_interface"] == vpn_ip
+def info(m):
+    print(_color("INFO", "[INFO] "), m)
+
+
+def ok(m):
+    print(_color("OK", "[ OK ] "), m)
+
+
+def warn(m):
+    print(_color("WARN", "[WARN] "), m)
+
+
+def fail(m):
+    print(_color("FAIL", "[FAIL] "), m)
+
+
+def header(m):
+    print(_color("HDR", f"\n=== {m} ==="))
+
+
+# ========================= PROC HELPERS ========================= #
+def run(cmd, timeout=None):
+    """Run a command; returns (rc, stdout, stderr)."""
+    shell = isinstance(cmd, str)
+    p = subprocess.run(
+        cmd,
+        shell=shell,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=timeout or None,
     )
-    print(f"[INFO] Cohérence IP Deluge/VPN: {consistent}")
-    return consistent, vpn_ip, config_ips
+    return p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
 
 
-def launch_repair_deluge_ip():
-    script = resolve_deluge_ip_script()
-    if not script:
-        print("[ERROR] Deluge IP repair script introuvable.")
-        return 127
-    if send_discord_message:
-        send_discord_message("[ACTION] Starting Deluge IP repair…")
-    return run_and_send(
-        ["python3", script.as_posix()], "Deluge IP repair", cwd=script.parent
-    )
+def require(binname):
+    return shutil.which(binname) is not None
 
 
-def handle_deluge_verification():
-    state = load_alert_state()
-    if state.get("deluge_status") != "inactive":
-        print("[INFO] Deluge non marqué 'inactive' → skip vérification.")
-        return
-    if send_discord_message:
-        send_discord_message("[ALERT] Deluge appears inactive: validating…")
-    consistent, vpn_ip, _ = verify_interface_consistency()
-    if not consistent:
-        if send_discord_message:
-            send_discord_message("[CONFIRMED] IP mismatch: repairing Deluge.")
-        rc = launch_repair_deluge_ip()
-        if rc == 0 and send_discord_message:
-            send_discord_message(f"[DONE] Deluge IP updated to {vpn_ip}")
-    else:
-        print("[INFO] Deluge IPs cohérentes, pas de réparation nécessaire.")
+def docker_exec(args, timeout=None):
+    """docker exec into the nginx container."""
+    return run(["docker", "exec", "-i", CONTAINER] + args, timeout=timeout)
 
 
-# ---------- Plex ONLINE test ----------
-def should_run_plex_online_test(force=False):
-    if force:
-        print("[DECISION] Test Plex forcé → True")
-        return True
-    state = load_alert_state()
-
-    # Source de vérité : clé imbriquée (monitor.py)
-    nested = (state.get("plex_external") or {}).get("status")
-    flat = state.get("plex_external_status")
-    status = nested or flat  # préfère l’imbriqué si présent
-
-    # (optionnel) si contradictions, on répare le JSON pour l’aligner
-    if nested and flat and nested != flat:
-        state["plex_external_status"] = nested
-        save_alert_state(state)
-        print(f"[FIX] Harmonized plex_external_status -> {nested}")
-
-    now = time.time()
-    last = state.get("plex_last_test_ts", 0)
-    print(
-        f"[DECISION] plex_external_status={status}, now={now}, last={last}, cooldown={PLEX_TEST_COOLDOWN}"
-    )
-    if status != "offline":
-        print("[DECISION] Plex n'est pas 'offline' → skip test")
-        return False
-    if (now - last) < PLEX_TEST_COOLDOWN:
-        print("[DECISION] Cooldown non expiré → skip test")
-        return False
-    print("[DECISION] Conditions réunies → lancer test Plex")
-    return True
+def docker_container_running(name):
+    rc, out, _ = run(["docker", "ps", "--format", "{{.Names}}"])
+    return rc == 0 and any(line.strip() == name for line in out.splitlines())
 
 
-def resolve_plex_online_cmd():
-    script = resolve_plex_online_script()
-    if not script:
-        print(
-            "[ERROR] plex_online.py introuvable dans les chemins connus. "
-            "Ajoute le bind '- ${ROOT}/scripts/tool:/app/tool' OU place le script à côté de repair.py."
+# ==================== NET / DNS / CERT HELPERS ================== #
+def _have_cmd(cmd: str) -> bool:
+    return shutil.which(cmd) is not None
+
+
+def _dig_a(domain: str, server: str, timeout=1.5, tries=1):
+    """Resolve A records via dig."""
+    try:
+        rc, out, _ = run(
+            [
+                "dig",
+                "+short",
+                f"+time={int(timeout)}",
+                f"+tries={int(tries)}",
+                "A",
+                domain,
+                f"@{server}",
+            ],
+            timeout=timeout + 0.5,
         )
-        return None, None
-    return ["python3", script.as_posix()], script.parent
+        if rc == 0 and out.strip():
+            ips = [
+                l.strip()
+                for l in out.splitlines()
+                if re.match(r"^\d+\.\d+\.\d+\.\d+$", l.strip())
+            ]
+            return ips
+    except Exception:
+        pass
+    return []
 
 
-def launch_plex_online_test(repair_mode: str | None = None, discord: bool = False):
+def resolve_a_multi(domain: str, resolvers=None, timeout=1.5, tries=1):
     """
-    Lance plex_online.py en relayant éventuellement:
-      - --repair <mode> (si supporté)
-      - --discord
-    Avec fallback automatique si argparse renvoie exit=2 :
-      1) --repair <mode>
-      2) --repair
-      3) --mode <mode>
-      4) (sans arg)
+    Résout les A-records IPv4 via plusieurs résolveurs publics (+fallback système).
+    Retourne (answers_set, details_log)
     """
-    cmd_base, cwd = resolve_plex_online_cmd()
-    if not cmd_base:
-        return 127
+    if resolvers is None:
+        resolvers = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
 
-    attempts = []
+    answers = set()
+    logs = []
 
-    # 1) Tentative préférée: "--repair <mode>" (si fourni)
-    if repair_mode in ("never", "on-fail", "always"):
-        attempts.append(cmd_base + ["--repair", repair_mode])
+    if _have_cmd("dig"):
+        for s in resolvers:
+            ips = _dig_a(domain, s, timeout=timeout, tries=tries)
+            logs.append(f"[DNS] @{s} -> {ips if ips else '∅'}")
+            answers.update(ips)
+
+    if not answers:
+        # Fallback système
+        try:
+            ai = socket.getaddrinfo(
+                domain, 0, family=socket.AF_INET, type=socket.SOCK_STREAM
+            )
+            ips = sorted({t[4][0] for t in ai})
+            logs.append(f"[DNS] system -> {ips if ips else '∅'}")
+            answers.update(ips)
+        except Exception as e:
+            logs.append(f"[DNS] system -> error: {e}")
+
+    return answers, logs
+
+
+def get_public_ip():
+    """Get current public IPv4 with fallbacks."""
+    for endpoint in (
+        ["curl", "-sS", "-4", "https://ifconfig.me"],
+        ["curl", "-sS", "-4", "https://api.ipify.org"],
+        ["curl", "-sS", "-4", "https://ipv4.icanhazip.com"],
+    ):
+        rc, out, _ = run(endpoint)
+        ip = (out or "").strip()
+        if rc == 0 and ip.count(".") == 3:
+            return ip
+    return ""
+
+
+def parse_notafter_to_days(exp_line):
+    """Parse 'Jun  1 12:34:56 2025 GMT' -> (days_left, dt)."""
+    exp_norm = re.sub(r"\s{2,}", " ", exp_line)
+    exp_dt = datetime.strptime(exp_norm, "%b %d %H:%M:%S %Y %Z").replace(
+        tzinfo=timezone.utc
+    )
+    now = datetime.now(timezone.utc)
+    return int((exp_dt - now).total_seconds() // 86400), exp_dt
+
+
+# ========================= REPAIRS ============================== #
+def repair_dns(pub_ip: str) -> bool:
+    """
+    Met à jour DuckDNS pour pointer vers pub_ip.
+    DUCKDNS_DOMAIN: sans .duckdns.org (ex: 'plex-robert')
+    DUCKDNS_TOKEN: token DuckDNS
+    """
+    if not DUCKDNS_DOMAIN or not DUCKDNS_TOKEN:
+        fail("DNS repair failed: missing DUCKDNS_DOMAIN or DUCKDNS_TOKEN")
+        return False
+    try:
+        url = f"https://www.duckdns.org/update?domains={DUCKDNS_DOMAIN}&token={DUCKDNS_TOKEN}&ip={pub_ip}"
+        with urllib.request.urlopen(url, timeout=8) as r:
+            body = r.read().decode().strip().upper()
+            if "OK" in body:
+                ok(
+                    f"[REPAIR][DNS_MATCH] Updated DuckDNS {DUCKDNS_DOMAIN}.duckdns.org -> {pub_ip}"
+                )
+                return True
+            else:
+                fail(f"[REPAIR][DNS_MATCH] DuckDNS update failed: {body}")
+                return False
+    except Exception as e:
+        fail(f"[REPAIR][DNS_MATCH] Exception: {e}")
+        return False
+
+
+def repair_generic(test_key: str):
+    """Message pro pour réparations non implémentées (console + Discord 'not available')."""
+    label = TEST_LABELS.get(test_key, test_key)
+    _repair_not_available(label)
+
+
+# ============================ TESTS ============================= #
+def test_preflight(results):
+    header("Preflight")
+    ok_all = True
+
+    for b in ("docker", "curl"):
+        if not require(b):
+            fail(f"Missing required host binary: {b}")
+            ok_all = False
+
+    if docker_container_running(CONTAINER):
+        ok(f"Container '{CONTAINER}' is running.")
     else:
-        attempts.append(cmd_base[:])  # pas de mode explicite
+        fail(f"Container '{CONTAINER}' is NOT running.")
+        ok_all = False
 
-    # 2) Fallback booléen: certaines versions n’acceptent que "--repair" tout seul
-    if repair_mode in ("on-fail", "always"):
-        attempts.append(cmd_base + ["--repair"])
-
-    # 3) Fallback alternatif: "--mode <mode>"
-    if repair_mode in ("never", "on-fail", "always"):
-        attempts.append(cmd_base + ["--mode", repair_mode])
-
-    # 4) Dernière chance: sans argument de mode
-    attempts.append(cmd_base[:])
-
-    def add_discord(a):
-        return a + (["--discord"] if discord else [])
-
-    last_rc = 2
-    last_tail = ""
-    total = len(attempts)
-    for i, attempt in enumerate(attempts, 1):
-        attempt = add_discord(attempt)
-        print(
-            f"[RUN] Plex online test (try {i}/{total}): {' '.join(attempt)} (cwd={cwd or Path.cwd()})"
-        )
-        res = subprocess.run(
-            attempt, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None
-        )
-        out = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
-        tail = out[-1800:] if out else "(no output)"
-        print(
-            f"[TRY {i}] exit={res.returncode}\n----- LOG (tail) -----\n{tail}\n----------------------"
-        )
-        last_rc, last_tail = res.returncode, tail
-
-        # Succès → on s'arrête
-        if res.returncode == 0:
-            break
-        # exit != 2 → erreur "réelle" (pas argparse), on s'arrête
-        if res.returncode != 2:
-            break
-        # Sinon (exit=2), on tente la variante suivante
-
-    # Log/Discord final
-    if send_discord_message:
-        if last_rc == 0:
-            send_discord_message("[OK] Plex online test completed")
+    if PLEX_CONTAINER:
+        if docker_container_running(PLEX_CONTAINER):
+            ok(f"Plex container '{PLEX_CONTAINER}' is running.")
         else:
-            send_discord_message(f"[ERROR] Plex online test failed (exit={last_rc}).")
+            warn(f"Plex container '{PLEX_CONTAINER}' not running.")
 
-    state = load_alert_state()
-    state["plex_last_test_ts"] = time.time()
-    save_alert_state(state)
-    return last_rc
-
-
-# ---------- Main ----------
-def main():
-    print("[DEBUG] repair.py is running")
-    setup_discord()
-
-    parser = argparse.ArgumentParser(description="Health/repair orchestrator")
-    parser.add_argument(
-        "--deluge-verify",
-        action="store_true",
-        help="Vérifier/réparer Deluge si nécessaire",
-    )
-    parser.add_argument(
-        "--deluge-repair", action="store_true", help="Forcer la réparation IP de Deluge"
-    )
-    parser.add_argument(
-        "--plex-online", action="store_true", help="Lancer le test Plex online"
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Ignorer les conditions et cooldowns (utilisé avec --plex-online)",
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Lancer tous les tests et réparations disponibles",
-    )
-
-    # === Nouveaux flags pour ip_adress_up.py ===
-    parser.add_argument(
-        "--deluge-ip-up",
-        action="store_true",
-        help="Met à jour core.conf avec l'IP VPN et redémarre Deluge si nécessaire",
-    )
-    parser.add_argument(
-        "--deluge-ip-force",
-        action="store_true",
-        help="Force le redémarrage de Deluge même sans changement",
-    )
-    parser.add_argument(
-        "--ip-mode",
-        choices=["never", "on-fail", "always"],
-        help="Passe le mode à ip_adress_up.py (override MODE_AUTO)",
-    )
-    parser.add_argument(
-        "--ip-always", action="store_true", help="Alias de --ip-mode always"
-    )
-    parser.add_argument(
-        "--ip-dry-run",
-        action="store_true",
-        help="N'écrit pas; affiche les actions prévues pour ip_adress_up.py",
-    )
-
-    # === Nouveaux flags pour relayer vers plex_online.py ===
-    parser.add_argument(
-        "--plex-repair-mode",
-        choices=["never", "on-fail", "always"],
-        help="Passe le mode à plex_online.py (override MODE_AUTO)",
-    )
-    parser.add_argument(
-        "--plex-discord",
-        action="store_true",
-        help="Active les notifications Discord dans plex_online.py",
-    )
-
-    args = parser.parse_args()
-
-    # Mode batch "tout"
-    if args.all:
-        handle_deluge_verification()
-        env_mode = os.getenv("MODE_AUTO", "").strip().lower()
-        env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
-        if should_run_plex_online_test(force=True):
-            launch_plex_online_test(
-                repair_mode=(
-                    args.plex_repair_mode
-                    or (
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    )
-                ),
-                discord=(args.plex_discord or env_discord),
-            )
-        return
-
-    # Exécutions ciblées via flags (Deluge IP updater)
-    if args.deluge_ip_up or args.deluge_ip_force:
-        mode = "always" if args.ip_always else (args.ip_mode or None)
-        launch_deluge_ip_up(
-            mode=mode, force=args.deluge_ip_force, dry_run=args.ip_dry_run
-        )
-
-    # Exécutions ciblées via flags (legacy verify/repair + plex)
-    if args.deluge_verify:
-        handle_deluge_verification()
-
-    if args.deluge_repair:
-        launch_repair_deluge_ip()
-
-    if args.plex_online:
-        # Si l'utilisateur a demandé explicitement, respecter --force et relayer options/env
-        env_mode = os.getenv("MODE_AUTO", "").strip().lower()
-        env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
-        if should_run_plex_online_test(force=args.force):
-            launch_plex_online_test(
-                repair_mode=(
-                    args.plex_repair_mode
-                    or (
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    )
-                ),
-                discord=(args.plex_discord or env_discord),
-            )
-        else:
-            print("[INFO] Plex online test skipped (status not offline ou cooldown).")
-
-    # --- AUTO: lancer plex_online si le JSON indique 'offline' (comportement initial, inchangé) ---
-    ran_anything = any(
+    # Quick upstream probe to your fallback (local Plex)
+    url = f"http://{UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}/identity"
+    rc, out, _ = run(
         [
-            args.all,
-            args.deluge_verify,
-            args.deluge_repair,
-            args.plex_online,
-            args.deluge_ip_up,
-            args.deluge_ip_force,
+            "curl",
+            "-sS",
+            "-m",
+            str(CURL_TIMEOUT),
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            url,
         ]
     )
-    if not ran_anything:
-        state = load_alert_state()
-        if state.get("plex_external_status") == "offline":
-            print(
-                "[AUTO] Plex est marqué 'offline' dans alert_state.json → lancement du test Plex"
+    if rc == 0 and out.strip() == "200":
+        ok(
+            f"Plex fallback upstream replied 200 on /identity ({UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT})."
+        )
+    else:
+        warn(f"Fallback Plex upstream test failed at {url} (code {out or 'n/a'}).")
+
+    if not ok_all:
+        results["_reason_PREFLIGHT"] = (
+            "preflight checks failed (missing binaries or containers down)"
+        )
+
+    results["PREFLIGHT"] = ok_all
+    return ok_all
+
+
+def test_conf_present(results):
+    header("Check nginx config presence")
+    rc, _, err = docker_exec(["ls", "-l", "/etc/nginx/conf.d"])
+    if rc != 0:
+        fail(f"Cannot list conf.d: {err}")
+        results["CONF_PRESENT"] = False
+        results["_reason_CONF_PRESENT"] = "cannot list /etc/nginx/conf.d"
+        return False
+
+    rc, _, _ = docker_exec(["sh", "-lc", f"test -f {shlex.quote(CONF_PATH)}"])
+    if rc == 0:
+        ok(f"Found {CONF_PATH} in container.")
+        results["CONF_PRESENT"] = True
+        return True
+
+    fail(f"Missing {CONF_PATH} in container.")
+    results["CONF_PRESENT"] = False
+    results["_reason_CONF_PRESENT"] = f"missing {CONF_PATH} in container"
+    return False
+
+
+def test_nginx_t(results):
+    header("Check nginx config syntax (nginx -t)")
+    rc, out, err = docker_exec(["nginx", "-t"])
+    if rc == 0:
+        ok("nginx -t: syntax OK")
+        results["NGINX_TEST"] = True
+        return True
+    fail(f"nginx -t error:\n{out}\n{err}")
+    results["NGINX_TEST"] = False
+    results["_reason_NGINX_TEST"] = "nginx -t error (see logs)"
+    return False
+
+
+def extract_upstream():
+    header("Extract upstream from plex.conf")
+    rc, out, _ = docker_exec(
+        [
+            "sh",
+            "-lc",
+            f"awk '/proxy_pass[[:space:]]+http/{{print $2}}' {shlex.quote(CONF_PATH)} | head -n1 | tr -d ';'",
+        ]
+    )
+    url = out.strip() if rc == 0 else ""
+    if not url:
+        warn(
+            f"No proxy_pass found. Using fallback {UPSTREAM_FALLBACK_HOST}:{UPSTREAM_FALLBACK_PORT}"
+        )
+        return (UPSTREAM_FALLBACK_HOST, UPSTREAM_FALLBACK_PORT)
+
+    no_scheme = re.sub(r"^https?://", "", url)
+    no_path = no_scheme.split("/", 1)[0]
+    if ":" in no_path:
+        host, port = no_path.split(":", 1)
+    else:
+        host, port = no_path, "80"
+    ok(f"Detected upstream target: {host}:{port}")
+    return (host, port)
+
+
+def test_upstream(results, host, port):
+    header("Test Plex upstream (/identity) from inside container")
+    rc, out, _ = docker_exec(
+        [
+            "curl",
+            "-sS",
+            "-m",
+            str(CURL_TIMEOUT),
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            f"http://{host}:{port}/identity",
+        ]
+    )
+    if rc == 0 and out.strip() == "200":
+        ok("Plex upstream replied 200 on /identity.")
+        results["PLEX_UPSTREAM"] = True
+        return True
+    fail(f"Plex upstream test failed (HTTP {out or 'n/a'}).")
+    results["PLEX_UPSTREAM"] = False
+    results["_reason_PLEX_UPSTREAM"] = (
+        f"HTTP {out or 'n/a'} from upstream {host}:{port}/identity"
+    )
+    return False
+
+
+def test_dns_match(results):
+    header("DuckDNS IP vs current public IP")
+    ips, dns_logs = resolve_a_multi(DOMAIN)
+    for line in dns_logs:
+        info(line)
+
+    if not ips:
+        fail("No A records returned by any resolver.")
+        results["DNS_MATCH"] = False
+        results["_reason_DNS_MATCH"] = "no A records from public resolvers"
+        return False
+
+    info(f"Resolved {DOMAIN} -> {sorted(ips)}")
+    results["duckdns_ips"] = sorted(ips)
+
+    pub_ip = results.get("_pub_ip") or get_public_ip()
+    if pub_ip:
+        ok(f"Current public IP: {pub_ip}")
+        results["_pub_ip"] = pub_ip
+    else:
+        fail("Unable to fetch current public IP.")
+        results["DNS_MATCH"] = False
+        results["_reason_DNS_MATCH"] = "unable to fetch current public IP"
+        return False
+
+    match = pub_ip in ips
+    if match:
+        ok(f"DuckDNS resolves to current public IP: {pub_ip}")
+    else:
+        fail(
+            f"DuckDNS does not match current public IP ({pub_ip}); resolved={sorted(ips)}"
+        )
+        results["_reason_DNS_MATCH"] = f"resolved={sorted(ips)}, public={pub_ip}"
+
+    results["DNS_MATCH"] = match
+    results["_duck_ip"] = sorted(ips)[0] if ips else ""
+    return match
+
+
+def test_cert_expiry(results):
+    header("Check certificate files and expiration")
+    rc1, _, _ = docker_exec(
+        ["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/fullchain.pem"]
+    )
+    rc2, _, _ = docker_exec(
+        ["sh", "-lc", f"test -f {shlex.quote(LE_PATH)}/privkey.pem"]
+    )
+    if rc1 == 0 and rc2 == 0:
+        ok(f"Found cert files under {LE_PATH} (fullchain.pem & privkey.pem).")
+    else:
+        fail(f"Cert files not found at {LE_PATH}.")
+        results["CERT_EXPIRY"] = False
+        results["_reason_CERT_EXPIRY"] = f"cert files missing at {LE_PATH}"
+        return False
+
+    exp_line = ""
+    has_in = docker_exec(["sh", "-lc", "command -v openssl >/dev/null 2>&1"])[0] == 0
+    if has_in:
+        rc, out, _ = docker_exec(
+            [
+                "sh",
+                "-lc",
+                f"openssl x509 -enddate -noout -in {shlex.quote(LE_PATH)}/fullchain.pem | cut -d= -f2",
+            ]
+        )
+        if rc == 0 and out.strip():
+            exp_line = out.strip()
+
+    if not exp_line and shutil.which("openssl"):
+        rc, pem, _ = docker_exec(
+            ["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"]
+        )
+        if rc == 0 and pem:
+            p = subprocess.run(
+                ["openssl", "x509", "-enddate", "-noout"],
+                input=pem,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-            if should_run_plex_online_test(force=AUTO_PLEX_FORCE):
-                # Relais via ENV en AUTO
-                env_mode = os.getenv("MODE_AUTO", "").strip().lower()
-                env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
-                launch_plex_online_test(
-                    repair_mode=(
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    ),
-                    discord=env_discord,
-                )
+            if p.returncode == 0 and p.stdout.strip():
+                exp_line = p.stdout.strip().split("=", 1)[-1].strip()
+
+    if not exp_line and shutil.which("openssl"):
+        rc, out, _ = run(
+            f"echo | openssl s_client -connect {shlex.quote(DOMAIN)}:443 "
+            f"-servername {shlex.quote(DOMAIN)} 2>/dev/null | openssl x509 -noout -enddate"
+        )
+        if rc == 0 and out.strip().startswith("notAfter="):
+            exp_line = out.strip().split("=", 1)[-1].strip()
+
+    if not exp_line:
+        fail("Could not determine certificate expiration.")
+        results["CERT_EXPIRY"] = False
+        results["_reason_CERT_EXPIRY"] = "cannot determine certificate expiration"
+        return False
+
+    try:
+        days_left, exp_dt = parse_notafter_to_days(exp_line)
+    except Exception as e:
+        fail(f"Failed to parse cert date '{exp_line}': {e}")
+        results["CERT_EXPIRY"] = False
+        results["_reason_CERT_EXPIRY"] = "cannot parse certificate expiration"
+        return False
+
+    if days_left < 0:
+        fail(f"Certificate EXPIRED {abs(days_left)} days ago (expires: {exp_dt}).")
+        ok_result = False
+        results["_reason_CERT_EXPIRY"] = f"certificate expired (notAfter={exp_dt})"
+    elif days_left < WARN_DAYS:
+        warn(f"Certificate will expire in {days_left} days (expires: {exp_dt}).")
+        ok_result = True
+    else:
+        ok(f"Certificate valid for {days_left} more days (expires: {exp_dt}).")
+        ok_result = True
+
+    results["CERT_EXPIRY"] = ok_result
+    results["_cert_days_left"] = days_left
+    return ok_result
+
+
+def test_https_external(results):
+    if not SIMULATE_EXTERNAL:
+        results["HTTPS_EXTERNAL"] = True
+        return True
+    header("Simulated external HTTPS (curl --resolve to public IP)")
+    pub_ip = results.get("_pub_ip", "")
+    if not pub_ip:
+        fail("No public IP available; skipping external simulation.")
+        results["HTTPS_EXTERNAL"] = False
+        results["_reason_HTTPS_EXTERNAL"] = "no public IP available for --resolve test"
+        return False
+
+    rc, out, _ = run(
+        [
+            "curl",
+            "-sS",
+            "-m",
+            str(CURL_TIMEOUT),
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            "--resolve",
+            f"{DOMAIN}:443:{pub_ip}",
+            f"https://{DOMAIN}/",
+        ]
+    )
+    code = out.strip() if rc == 0 else ""
+    if code in {"200", "301", "302", "401", "403"}:
+        ok(f"HTTPS answered with HTTP {code} at {DOMAIN} (forced to {pub_ip}).")
+        results["HTTPS_EXTERNAL"] = True
+        return True
+
+    fail(f"No HTTPS answer (code '{code or 'timeout'}').")
+    results["HTTPS_EXTERNAL"] = False
+    results["_reason_HTTPS_EXTERNAL"] = (
+        f"https://{DOMAIN} no valid HTTP answer via --resolve ({code or 'timeout'})"
+    )
+    return False
+
+
+# ====================== REPAIR ORCHESTRATION ==================== #
+def _parse_args():
+    p = argparse.ArgumentParser(
+        description="Plex + Nginx health checks (DNS repair inline)"
+    )
+    p.add_argument(
+        "--repair",
+        choices=["never", "on-fail", "always"],
+        default="never",
+        help="when to attempt repairs (default: never)",
+    )
+    return p.parse_args()
+
+
+def _collect_failures(results):
+    """DNS_MATCH est critique au même titre que les autres tests."""
+    failures = []
+    for k in TESTS:
+        if results.get(k) is False:
+            failures.append(k)
+    return failures
+
+
+def _announce_availability_for_all(failed_tests, results, mode: str):
+    """
+    Envoie les messages [Repair] 'available' / 'not available' selon le test et le mode.
+    - DNS_MATCH : available (raison = _reason_DNS_MATCH) si échec ou mode=always
+    - autres    : not available
+    """
+    # DNS available?
+    dns_reason = results.get("_reason_DNS_MATCH", "DNS does not match public IP")
+    if "DNS_MATCH" in failed_tests or mode == "always":
+        _repair_available("Update DuckDNS IP", dns_reason)
+
+    # For all non-DNS failed tests, mark as not available
+    for t in failed_tests:
+        if t != "DNS_MATCH":
+            label = TEST_LABELS.get(t, t)
+            _repair_not_available(label)
+
+
+def _run_repairs(mode: str, failed_tests, results):
+    """
+    Réparations intégrées : DNS_MATCH seulement.
+    - 'never'  : annonce availability/not-available, pas de lancement.
+    - 'on-fail': lance DNS si dans failed_tests.
+    - 'always' : tente DNS même sans échec.
+    """
+    # Annonce disponibilité / indisponibilité (toujours utile pour visibilité)
+    _announce_availability_for_all(failed_tests, results, mode)
+
+    if mode == "never":
+        return
+
+    # always => tenter même si pas de fails; ici seul DNS a une implémentation
+    targets = failed_tests if mode == "on-fail" else (failed_tests or ["DNS_MATCH"])
+
+    for t in targets:
+        if t == "DNS_MATCH":
+            pub = results.get("_pub_ip", "") or get_public_ip()
+            if not pub:
+                _repair_fail("Update DuckDNS IP", "public IP unavailable")
+                continue
+            _repair_launch("Update DuckDNS IP")
+            repaired = repair_dns(pub)
+            if repaired:
+                _repair_success("Update DuckDNS IP")
             else:
-                print(
-                    "[AUTO] Conditions non réunies (cooldown ou état) → test non lancé"
-                )
+                _repair_fail("Update DuckDNS IP", "provider rejected or network error")
+        else:
+            repair_generic(t)
+
+
+# ============================== MAIN ============================ #
+def main():
+    args = _parse_args()
+
+    results = {}
+
+    # Ordre important (DNS avant HTTPS pour cohérence logs)
+    test_preflight(results)
+    test_conf_present(results)
+    test_nginx_t(results)
+    host, port = extract_upstream()
+    results["UPSTREAM_FROM_CONF"] = True
+    test_upstream(results, host, port)
+    test_dns_match(results)
+    test_cert_expiry(results)
+    test_https_external(results)
+
+    failing = _collect_failures(results)
+
+    # === Discord: Résultats ===
+    if not failing and results.get("HTTPS_EXTERNAL", True):
+        _results_success()
+    else:
+        # Liste agrégée des tests en échec
+        _results_failed_list(failing, results)
+
+    # Réparations (après envoi du résumé)
+    _run_repairs(args.repair, failing, results)
+
+    # code de sortie
+    sys.exit(0 if not failing else 2)
 
 
 if __name__ == "__main__":

@@ -26,8 +26,10 @@ Ajouts:
     MODE_AUTO=never|on-fail|always
     PLEX_ONLINE_DISCORD=1 (pour forcer --discord)
 
-- Fallback automatique si plex_online.py renvoie exit=2 (argparse) :
-    essaie successivement: "--repair <mode>" → "--repair" → "--mode <mode>" → (sans arg)
+- Fallbacks adaptés:
+    plex_online.py retourne exit=2 quand ≥1 test échoue (pas un problème d'argparse).
+    On tente d'abord: "--repair <mode>" (si présent), puis un run "simple" (sans --repair).
+    Si un update DuckDNS vient d’être fait, on attend la propagation et on re-teste automatiquement.
 """
 
 import json
@@ -435,44 +437,29 @@ def launch_plex_online_test(repair_mode: str | None = None, discord: bool = Fals
     Lance plex_online.py en relayant éventuellement:
       - --repair <mode> (si supporté)
       - --discord
-    Avec fallback automatique si argparse renvoie exit=2 :
-      1) --repair <mode>
-      2) --repair
-      3) --mode <mode>
-      4) (sans arg)
+
+    Stratégie:
+      1) Tentative principale: --repair <mode> si fourni (never|on-fail|always)
+      2) Tentative simple: sans --repair (relecture des tests)
+      3) Si le tail indique une MAJ DuckDNS, on attend la propagation et on re-teste automatiquement (jusqu'à 6x/10s).
     """
     cmd_base, cwd = resolve_plex_online_cmd()
     if not cmd_base:
         return 127
 
     attempts = []
-
-    # 1) Tentative préférée: "--repair <mode>" (si fourni)
     if repair_mode in ("never", "on-fail", "always"):
         attempts.append(cmd_base + ["--repair", repair_mode])
-    else:
-        attempts.append(cmd_base[:])  # pas de mode explicite
-
-    # 2) Fallback booléen: certaines versions n’acceptent que "--repair" tout seul
-    if repair_mode in ("on-fail", "always"):
-        attempts.append(cmd_base + ["--repair"])
-
-    # 3) Fallback alternatif: "--mode <mode>"
-    if repair_mode in ("never", "on-fail", "always"):
-        attempts.append(cmd_base + ["--mode", repair_mode])
-
-    # 4) Dernière chance: sans argument de mode
-    attempts.append(cmd_base[:])
+    attempts.append(cmd_base[:])  # run simple
 
     def add_discord(a):
         return a + (["--discord"] if discord else [])
 
     last_rc = 2
     last_tail = ""
-    total = len(attempts)
-    for i, attempt in enumerate(attempts, 1):
-        attempt = add_discord(attempt)
-        print(f"[RUN] Plex online test (try {i}/{total}): {' '.join(attempt)} (cwd={cwd or Path.cwd()})")
+
+    for i, attempt in enumerate([add_discord(a) for a in attempts], 1):
+        print(f"[RUN] Plex online test (try {i}/{len(attempts)}): {' '.join(attempt)} (cwd={cwd or Path.cwd()})")
         res = subprocess.run(
             attempt, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None
         )
@@ -481,20 +468,31 @@ def launch_plex_online_test(repair_mode: str | None = None, discord: bool = Fals
         print(f"[TRY {i}] exit={res.returncode}\n----- LOG (tail) -----\n{tail}\n----------------------")
         last_rc, last_tail = res.returncode, tail
 
-        # Succès → on s'arrête
         if res.returncode == 0:
             break
-        # exit != 2 → erreur "réelle" (pas argparse), on s'arrête
         if res.returncode != 2:
             break
-        # Sinon (exit=2), on tente la variante suivante
 
-    # Log/Discord final
+    # Si un update DuckDNS vient d'avoir lieu, réessayer automatiquement (propagation DNS)
+    if last_rc == 2 and ("Updated DuckDNS" in (last_tail or "")):
+        for j in range(6):  # ~1 minute max
+            time.sleep(10)
+            retry_cmd = add_discord(cmd_base[:])
+            res = subprocess.run(retry_cmd, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None)
+            out = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
+            tail = out[-1800:] if out else "(no output)"
+            print(f"[RECHECK {j+1}/6] exit={res.returncode}\n----- LOG (tail) -----\n{tail}\n----------------------")
+            last_rc, last_tail = res.returncode, tail
+            if res.returncode == 0:
+                break
+
+    # Log/Discord final (avec snippet du tail)
     if send_discord_message:
         if last_rc == 0:
             send_discord_message("[OK] Plex online test completed")
         else:
-            send_discord_message(f"[ERROR] Plex online test failed (exit={last_rc}).")
+            snippet = last_tail[-1500:] if last_tail else "(no output)"
+            send_discord_message(f"[ERROR] Plex online test failed (exit={last_rc}).\n```{snippet}```")
 
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
