@@ -25,6 +25,9 @@ Ajouts:
   En AUTO (sans flag), on peut relayer depuis l'env:
     MODE_AUTO=never|on-fail|always
     PLEX_ONLINE_DISCORD=1 (pour forcer --discord)
+
+- Fallback automatique si plex_online.py renvoie exit=2 (argparse) :
+    essaie successivement: "--repair <mode>" → "--repair" → "--mode <mode>" → (sans arg)
 """
 
 import json
@@ -134,7 +137,7 @@ load_env_robust()
 
 # ---------- Constantes & chemins ----------
 ALERT_STATE_FILE = "/mnt/data/alert_state.json"  # côté Docker (monté)
-CONFIG_PATH = "/app/config/deluge/core.conf"  # côté Docker
+CONFIG_PATH = "/app/config/deluge/core.conf"     # côté Docker
 
 # Cooldown (en secondes) entre deux tests Plex (évite les boucles)
 PLEX_TEST_COOLDOWN = int(os.environ.get("PLEX_TEST_COOLDOWN", "300"))
@@ -181,11 +184,11 @@ def _first_existing(paths):
 def resolve_plex_online_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "plex_online.py",  # voisin
-        (root / "scripts/tool/plex_online.py") if root else None,  # host
-        Path("/app/tool/plex_online.py"),  # docker bind
-        Path("/app/monitor/repair/plex_online.py"),  # docker voisin
-        Path("/app/repair/plex_online.py"),  # docker core/repair
+        BASE_DIR / "plex_online.py",                                  # voisin
+        (root / "scripts/tool/plex_online.py") if root else None,     # host
+        Path("/app/tool/plex_online.py"),                             # docker bind
+        Path("/app/monitor/repair/plex_online.py"),                   # docker voisin
+        Path("/app/repair/plex_online.py"),                           # docker core/repair
     ]
     return _first_existing([p for p in candidates if p])
 
@@ -193,9 +196,9 @@ def resolve_plex_online_script() -> Path | None:
 def resolve_deluge_ip_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "ip_adress_up.py",  # voisin (orthographe 'adress')
+        BASE_DIR / "ip_adress_up.py",                                 # voisin (orthographe 'adress')
         (root / "scripts/core/repair/ip_adress_up.py") if root else None,  # host
-        Path("/app/repair/ip_adress_up.py"),  # docker bind officiel
+        Path("/app/repair/ip_adress_up.py"),                          # docker bind officiel
     ]
     return _first_existing([p for p in candidates if p])
 
@@ -209,7 +212,7 @@ def setup_discord():
         BASE_DIR / "discord" / "discord_notify.py",
         BASE_DIR.parent / "discord" / "discord_notify.py",
         (root / "scripts/discord/discord_notify.py") if root else None,  # host
-        Path("/app/discord/discord_notify.py"),  # docker
+        Path("/app/discord/discord_notify.py"),                           # docker
     ]
     for p in [c for c in candidates if c]:
         if p.is_file():
@@ -304,7 +307,7 @@ def launch_deluge_ip_up(
     if force:
         cmd.append("--force")
     if dry_run:
-        cmd.append("--dry_run")  # NB: si ton script attend --dry-run, adapte ici
+        cmd.append("--dry-run")  # orthographe standard
 
     if send_discord_message:
         send_discord_message(f"[ACTION] Lancement ip_adress_up: {' '.join(cmd)}")
@@ -430,28 +433,73 @@ def resolve_plex_online_cmd():
 def launch_plex_online_test(repair_mode: str | None = None, discord: bool = False):
     """
     Lance plex_online.py en relayant éventuellement:
-      - --repair <mode>
+      - --repair <mode> (si supporté)
       - --discord
+    Avec fallback automatique si argparse renvoie exit=2 :
+      1) --repair <mode>
+      2) --repair
+      3) --mode <mode>
+      4) (sans arg)
     """
-    cmd, cwd = resolve_plex_online_cmd()
-    if not cmd:
+    cmd_base, cwd = resolve_plex_online_cmd()
+    if not cmd_base:
         return 127
 
-    # Forward CLI/env options to plex_online.py
-    if repair_mode and repair_mode in ("never", "on-fail", "always"):
-        cmd += ["--repair", repair_mode]
+    attempts = []
 
-    if discord:
-        cmd.append("--discord")
+    # 1) Tentative préférée: "--repair <mode>" (si fourni)
+    if repair_mode in ("never", "on-fail", "always"):
+        attempts.append(cmd_base + ["--repair", repair_mode])
+    else:
+        attempts.append(cmd_base[:])  # pas de mode explicite
 
+    # 2) Fallback booléen: certaines versions n’acceptent que "--repair" tout seul
+    if repair_mode in ("on-fail", "always"):
+        attempts.append(cmd_base + ["--repair"])
+
+    # 3) Fallback alternatif: "--mode <mode>"
+    if repair_mode in ("never", "on-fail", "always"):
+        attempts.append(cmd_base + ["--mode", repair_mode])
+
+    # 4) Dernière chance: sans argument de mode
+    attempts.append(cmd_base[:])
+
+    def add_discord(a):
+        return a + (["--discord"] if discord else [])
+
+    last_rc = 2
+    last_tail = ""
+    total = len(attempts)
+    for i, attempt in enumerate(attempts, 1):
+        attempt = add_discord(attempt)
+        print(f"[RUN] Plex online test (try {i}/{total}): {' '.join(attempt)} (cwd={cwd or Path.cwd()})")
+        res = subprocess.run(
+            attempt, capture_output=True, text=True, cwd=cwd.as_posix() if cwd else None
+        )
+        out = (res.stdout or "") + ("\n" + res.stderr if res.stderr else "")
+        tail = out[-1800:] if out else "(no output)"
+        print(f"[TRY {i}] exit={res.returncode}\n----- LOG (tail) -----\n{tail}\n----------------------")
+        last_rc, last_tail = res.returncode, tail
+
+        # Succès → on s'arrête
+        if res.returncode == 0:
+            break
+        # exit != 2 → erreur "réelle" (pas argparse), on s'arrête
+        if res.returncode != 2:
+            break
+        # Sinon (exit=2), on tente la variante suivante
+
+    # Log/Discord final
     if send_discord_message:
-        send_discord_message(f"[ACTION] Running Plex online test… ({' '.join(cmd)})")
+        if last_rc == 0:
+            send_discord_message("[OK] Plex online test completed")
+        else:
+            send_discord_message(f"[ERROR] Plex online test failed (exit={last_rc}).")
 
-    rc = run_and_send(cmd, "Plex online test", cwd=cwd)
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
     save_alert_state(state)
-    return rc
+    return last_rc
 
 
 # ---------- Main ----------
@@ -524,16 +572,13 @@ def main():
     # Mode batch "tout"
     if args.all:
         handle_deluge_verification()
-        # Forcer le test Plex (bypass conditions) tout en relayant options
         env_mode = os.getenv("MODE_AUTO", "").strip().lower()
         env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
         if should_run_plex_online_test(force=True):
             launch_plex_online_test(
                 repair_mode=(
                     args.plex_repair_mode
-                    or (
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    )
+                    or (env_mode if env_mode in ("never", "on-fail", "always") else None)
                 ),
                 discord=(args.plex_discord or env_discord),
             )
@@ -561,9 +606,7 @@ def main():
             launch_plex_online_test(
                 repair_mode=(
                     args.plex_repair_mode
-                    or (
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    )
+                    or (env_mode if env_mode in ("never", "on-fail", "always") else None)
                 ),
                 discord=(args.plex_discord or env_discord),
             )
@@ -592,15 +635,11 @@ def main():
                 env_mode = os.getenv("MODE_AUTO", "").strip().lower()
                 env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
                 launch_plex_online_test(
-                    repair_mode=(
-                        env_mode if env_mode in ("never", "on-fail", "always") else None
-                    ),
+                    repair_mode=(env_mode if env_mode in ("never", "on-fail", "always") else None),
                     discord=env_discord,
                 )
             else:
-                print(
-                    "[AUTO] Conditions non réunies (cooldown ou état) → test non lancé"
-                )
+                print("[AUTO] Conditions non réunies (cooldown ou état) → test non lancé")
 
 
 if __name__ == "__main__":
