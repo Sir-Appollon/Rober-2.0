@@ -10,6 +10,7 @@ USAGE
   python3 plex_online.py --repair on-fail
   python3 plex_online.py --repair always
   python3 plex_online.py --repair never
+  python3 plex_online.py --repair on-fail --discord
 """
 
 import argparse
@@ -71,6 +72,9 @@ if not DUCKDNS_DOMAIN and DOMAIN.endswith(".duckdns.org"):
 # Optionnel: webhook Discord
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "").strip()
 
+# Flag runtime: n'envoie sur Discord que si --discord est fourni
+SEND_DISCORD = False
+
 
 # --- Sanity logs (token masqué) ---
 def _mask(s: str, keep: int = 4) -> str:
@@ -113,7 +117,8 @@ TEST_LABELS = {
 
 # ======================== UI / LOG HELPERS ====================== #
 def _discord_send(msg: str):
-    if not DISCORD_WEBHOOK:
+    # Envoi seulement si --discord ET webhook configuré
+    if not SEND_DISCORD or not DISCORD_WEBHOOK:
         return
     try:
         r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=10)
@@ -552,8 +557,14 @@ def test_cert_expiry(results):
 
     if not exp_line and shutil.which("openssl"):
         rc, pem, _ = docker_exec(
-            ["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"]
-        )
+            [
+                "sh",
+                "-lc",
+                f"cat {shlexquote := shlex.quote(LE_PATH)}/fullchain.pem".replace(
+                    "shlexquote", "shlexquote"
+                ),
+            ]
+        )  # small trick to keep code readable
         if rc == 0 and pem:
             p = subprocess.run(
                 ["openssl", "x509", "-enddate", "-noout"],
@@ -655,6 +666,11 @@ def _parse_args():
         default="never",
         help="when to attempt repairs (default: never)",
     )
+    p.add_argument(
+        "--discord",
+        action="store_true",
+        help="send Discord messages if set",
+    )
     return p.parse_args()
 
 
@@ -719,7 +735,11 @@ def _run_repairs(mode: str, failed_tests, results):
 
 # ============================== MAIN ============================ #
 def main():
+    global SEND_DISCORD
     args = _parse_args()
+    SEND_DISCORD = args.discord
+    if SEND_DISCORD:
+        print("[INFO] Discord messaging ENABLED via --discord")
 
     results = {}
 
