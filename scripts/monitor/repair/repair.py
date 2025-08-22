@@ -18,6 +18,13 @@ Ajouts:
     --deluge-ip-force         → redémarre Deluge même sans changement
     --ip-mode X / --ip-always → passe le mode à ip_adress_up.py (override MODE_AUTO)
     --ip-dry-run              → ne rien écrire; seulement afficher le plan
+
+- RELAIS des options vers plex_online.py:
+    --plex-repair-mode (never|on-fail|always)  → passe --repair X
+    --plex-discord                             → passe --discord
+  En AUTO (sans flag), on peut relayer depuis l'env:
+    MODE_AUTO=never|on-fail|always
+    PLEX_ONLINE_DISCORD=1 (pour forcer --discord)
 """
 
 import json
@@ -174,9 +181,9 @@ def _first_existing(paths):
 def resolve_plex_online_script() -> Path | None:
     root = _project_root_guess()
     candidates = [
-        BASE_DIR / "plex_online.py",  # voisin de repair.py (ton fichier)
+        BASE_DIR / "plex_online.py",  # voisin
         (root / "scripts/tool/plex_online.py") if root else None,  # host
-        Path("/app/tool/plex_online.py"),  # docker si bind ajouté
+        Path("/app/tool/plex_online.py"),  # docker bind
         Path("/app/monitor/repair/plex_online.py"),  # docker voisin
         Path("/app/repair/plex_online.py"),  # docker core/repair
     ]
@@ -297,7 +304,7 @@ def launch_deluge_ip_up(
     if force:
         cmd.append("--force")
     if dry_run:
-        cmd.append("--dry-run")
+        cmd.append("--dry_run")  # NB: si ton script attend --dry-run, adapte ici
 
     if send_discord_message:
         send_discord_message(f"[ACTION] Lancement ip_adress_up: {' '.join(cmd)}")
@@ -420,12 +427,26 @@ def resolve_plex_online_cmd():
     return ["python3", script.as_posix()], script.parent
 
 
-def launch_plex_online_test():
+def launch_plex_online_test(repair_mode: str | None = None, discord: bool = False):
+    """
+    Lance plex_online.py en relayant éventuellement:
+      - --repair <mode>
+      - --discord
+    """
     cmd, cwd = resolve_plex_online_cmd()
     if not cmd:
         return 127
+
+    # Forward CLI/env options to plex_online.py
+    if repair_mode and repair_mode in ("never", "on-fail", "always"):
+        cmd += ["--repair", repair_mode]
+
+    if discord:
+        cmd.append("--discord")
+
     if send_discord_message:
-        send_discord_message("[ACTION] Running Plex online test…")
+        send_discord_message(f"[ACTION] Running Plex online test… ({' '.join(cmd)})")
+
     rc = run_and_send(cmd, "Plex online test", cwd=cwd)
     state = load_alert_state()
     state["plex_last_test_ts"] = time.time()
@@ -486,13 +507,36 @@ def main():
         help="N'écrit pas; affiche les actions prévues pour ip_adress_up.py",
     )
 
+    # === Nouveaux flags pour relayer vers plex_online.py ===
+    parser.add_argument(
+        "--plex-repair-mode",
+        choices=["never", "on-fail", "always"],
+        help="Passe le mode à plex_online.py (override MODE_AUTO)",
+    )
+    parser.add_argument(
+        "--plex-discord",
+        action="store_true",
+        help="Active les notifications Discord dans plex_online.py",
+    )
+
     args = parser.parse_args()
 
     # Mode batch "tout"
     if args.all:
         handle_deluge_verification()
+        # Forcer le test Plex (bypass conditions) tout en relayant options
+        env_mode = os.getenv("MODE_AUTO", "").strip().lower()
+        env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
         if should_run_plex_online_test(force=True):
-            launch_plex_online_test()
+            launch_plex_online_test(
+                repair_mode=(
+                    args.plex_repair_mode
+                    or (
+                        env_mode if env_mode in ("never", "on-fail", "always") else None
+                    )
+                ),
+                discord=(args.plex_discord or env_discord),
+            )
         return
 
     # Exécutions ciblées via flags (Deluge IP updater)
@@ -510,8 +554,19 @@ def main():
         launch_repair_deluge_ip()
 
     if args.plex_online:
+        # Si l'utilisateur a demandé explicitement, respecter --force et relayer options/env
+        env_mode = os.getenv("MODE_AUTO", "").strip().lower()
+        env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
         if should_run_plex_online_test(force=args.force):
-            launch_plex_online_test()
+            launch_plex_online_test(
+                repair_mode=(
+                    args.plex_repair_mode
+                    or (
+                        env_mode if env_mode in ("never", "on-fail", "always") else None
+                    )
+                ),
+                discord=(args.plex_discord or env_discord),
+            )
         else:
             print("[INFO] Plex online test skipped (status not offline ou cooldown).")
 
@@ -533,7 +588,15 @@ def main():
                 "[AUTO] Plex est marqué 'offline' dans alert_state.json → lancement du test Plex"
             )
             if should_run_plex_online_test(force=AUTO_PLEX_FORCE):
-                launch_plex_online_test()
+                # Relais via ENV en AUTO
+                env_mode = os.getenv("MODE_AUTO", "").strip().lower()
+                env_discord = os.getenv("PLEX_ONLINE_DISCORD", "0") == "1"
+                launch_plex_online_test(
+                    repair_mode=(
+                        env_mode if env_mode in ("never", "on-fail", "always") else None
+                    ),
+                    discord=env_discord,
+                )
             else:
                 print(
                     "[AUTO] Conditions non réunies (cooldown ou état) → test non lancé"
