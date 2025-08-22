@@ -543,6 +543,7 @@ def test_cert_expiry(results):
         return False
 
     exp_line = ""
+    # 1) Essai openssl *dans* le conteneur (idéal si installé)
     has_in = docker_exec(["sh", "-lc", "command -v openssl >/dev/null 2>&1"])[0] == 0
     if has_in:
         rc, out, _ = docker_exec(
@@ -555,16 +556,11 @@ def test_cert_expiry(results):
         if rc == 0 and out.strip():
             exp_line = out.strip()
 
+    # 2) Si openssl pas dispo dans le conteneur : on cat le pem (dans le conteneur) et on parse avec openssl hôte
     if not exp_line and shutil.which("openssl"):
-        rc, pem, _ = docker_exec(
-            [
-                "sh",
-                "-lc",
-                f"cat {shlexquote := shlex.quote(LE_PATH)}/fullchain.pem".replace(
-                    "shlexquote", "shlexquote"
-                ),
-            ]
-        )  # small trick to keep code readable
+        rc, pem, err = docker_exec(
+            ["sh", "-lc", f"cat {shlex.quote(LE_PATH)}/fullchain.pem"]
+        )
         if rc == 0 and pem:
             p = subprocess.run(
                 ["openssl", "x509", "-enddate", "-noout"],
@@ -575,7 +571,10 @@ def test_cert_expiry(results):
             )
             if p.returncode == 0 and p.stdout.strip():
                 exp_line = p.stdout.strip().split("=", 1)[-1].strip()
+        elif rc != 0:
+            warn(f"Could not read fullchain.pem from container: {err or 'unknown error'}")
 
+    # 3) Dernier recours : s_client vers le domaine (nécessite openssl hôte + accès réseau)
     if not exp_line and shutil.which("openssl"):
         rc, out, _ = run(
             f"echo | openssl s_client -connect {shlex.quote(DOMAIN)}:443 "
