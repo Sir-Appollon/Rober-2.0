@@ -18,8 +18,8 @@ import subprocess
 import os
 import importlib.util
 
-INTERVAL_SECONDS = 120
-INTERVAL_SECONDS_BETWEEN_DEF = 60
+INTERVAL_SECONDS = 60
+INTERVAL_SECONDS_BETWEEN_DEF = 20
 mode = "debug"
 
 discord_paths = [
