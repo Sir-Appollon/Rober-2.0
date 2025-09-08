@@ -35,8 +35,8 @@ else:
 
 # ========= CONFIG ENV (timeouts/retries & speedtest) =========
 CONNECT_TIMEOUT = int(os.getenv("CONNECT_TIMEOUT", "3"))
-MAX_TIME        = int(os.getenv("MAX_TIME", "10"))
-RETRIES         = int(os.getenv("RETRIES", "2"))
+MAX_TIME = int(os.getenv("MAX_TIME", "10"))
+RETRIES = int(os.getenv("RETRIES", "2"))
 
 SPEEDTEST_ENABLED = os.getenv("SPEEDTEST_ENABLED", "1") == "1"
 SPEEDTEST_COOLDOWN_SEC = int(os.getenv("SPEEDTEST_COOLDOWN_SEC", "7200"))  # 2h
@@ -57,6 +57,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
+
 def append_json_log(entry):
     LOG_FILE = "/mnt/data/system_monitor_log.json"
     entry["timestamp"] = datetime.now().isoformat()
@@ -74,24 +75,32 @@ def append_json_log(entry):
             json.dump(logs, f, indent=2)
             f.truncate()
 
+
 # ========= DISCORD (OPTIONNEL) =========
 print("[DEBUG - run_quick_check.py - INIT - 2] Initializing Discord connection")
 discord_paths = [
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")),
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")),
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "discord", "discord_notify.py")
+    ),
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "discord", "discord_notify.py")
+    ),
 ]
 send_discord_message = None
 for discord_path in discord_paths:
     if os.path.isfile(discord_path):
         print(f"[DEBUG] Using Discord notify at: {discord_path}")
         try:
-            spec = importlib.util.spec_from_file_location("discord_notify", discord_path)
+            spec = importlib.util.spec_from_file_location(
+                "discord_notify", discord_path
+            )
             discord_notify = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(discord_notify)
             send_discord_message = discord_notify.send_discord_message
             break
         except Exception as e:
             print(f"[DEBUG] Failed to import discord_notify: {e}")
+
 
 # ========= UTIL NET =========
 def _ensure_https(domain: str) -> str:
@@ -101,36 +110,55 @@ def _ensure_https(domain: str) -> str:
         return domain
     return f"https://{domain}"
 
+
 def _extract_host(domain_url: str) -> str:
     return re.sub(r"^https?://", "", domain_url).split("/", 1)[0]
+
 
 # ---------- Helpers cURL (retries/timeouts unifiés) ----------
 def curl_http_code(args) -> (int, str):
     cmd = [
-        "curl", "-sS",
-        "--retry", str(RETRIES), "--retry-all-errors",
-        "--connect-timeout", str(CONNECT_TIMEOUT),
-        "-m", str(MAX_TIME),
-        "-o", "/dev/null",
-        "-w", "%{http_code}"
+        "curl",
+        "-sS",
+        "--retry",
+        str(RETRIES),
+        "--retry-all-errors",
+        "--connect-timeout",
+        str(CONNECT_TIMEOUT),
+        "-m",
+        str(MAX_TIME),
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
     ] + args
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     code = (p.stdout or "").strip()
     return p.returncode, code if code else f"retcode_{p.returncode}"
 
+
 def curl_http_head(url: str) -> (int, str):
     cmd = [
-        "curl", "-sS", "-I",
-        "--retry", str(RETRIES), "--retry-all-errors",
-        "--connect-timeout", str(CONNECT_TIMEOUT),
-        "-m", str(MAX_TIME),
-        "-o", "/dev/null",
-        "-w", "%{http_code}",
-        url
+        "curl",
+        "-sS",
+        "-I",
+        "--retry",
+        str(RETRIES),
+        "--retry-all-errors",
+        "--connect-timeout",
+        str(CONNECT_TIMEOUT),
+        "-m",
+        str(MAX_TIME),
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        url,
     ]
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     code = (p.stdout or "").strip()
     return p.returncode, code if code else f"retcode_{p.returncode}"
+
 
 # ---------- Test TCP bas niveau ----------
 def tcp_port_open(host: str, port: int, timeout=2.5) -> bool:
@@ -140,9 +168,11 @@ def tcp_port_open(host: str, port: int, timeout=2.5) -> bool:
     except Exception:
         return False
 
+
 # ---------- IP publique avec cache ----------
 IP_CACHE_FILE = "/mnt/data/public_ip_cache.json"
 IP_CACHE_TTL_SEC = int(os.getenv("PUBLIC_IP_CACHE_TTL_SEC", "600"))  # 10 min
+
 
 def _write_ip_cache(ip: str):
     try:
@@ -150,6 +180,7 @@ def _write_ip_cache(ip: str):
             json.dump({"ip": ip, "ts": int(time.time())}, f)
     except Exception:
         pass
+
 
 def _read_ip_cache():
     try:
@@ -161,15 +192,22 @@ def _read_ip_cache():
         pass
     return ""
 
+
 def get_public_ip(timeout=5) -> str:
     ip = _read_ip_cache()
     if ip:
         return ip
-    for url in ["https://api.ipify.org", "https://ifconfig.me", "https://icanhazip.com"]:
+    for url in [
+        "https://api.ipify.org",
+        "https://ifconfig.me",
+        "https://icanhazip.com",
+    ]:
         try:
             rc = subprocess.run(
                 ["curl", "-sS", "-4", "--max-time", str(timeout), url],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
             cand = (rc.stdout or "").strip()
             socket.inet_aton(cand)
@@ -179,8 +217,10 @@ def get_public_ip(timeout=5) -> str:
             continue
     return ""
 
+
 # ========= TESTS PLEX =========
 ALLOWED_OK = {"200", "301", "302", "401", "403"}
+
 
 def _url_host_port_from_plex_url(plex_url: str):
     if not plex_url:
@@ -194,6 +234,7 @@ def _url_host_port_from_plex_url(plex_url: str):
         except Exception:
             return host, 32400
     return hostport, 32400
+
 
 def test_local_plex_identity(plex_url: str):
     """
@@ -214,14 +255,18 @@ def test_local_plex_identity(plex_url: str):
         return True, f"HEAD_{code_h}"
 
     rc, code = curl_http_code([identity_url])
-    ok = (rc == 0 and code in ALLOWED_OK)
+    ok = rc == 0 and code in ALLOWED_OK
     return ok, code
+
 
 def resolve_a_records(host: str):
     try:
-        return list({ai[4][0] for ai in socket.getaddrinfo(host, None, family=socket.AF_INET)})
+        return list(
+            {ai[4][0] for ai in socket.getaddrinfo(host, None, family=socket.AF_INET)}
+        )
     except Exception:
         return []
+
 
 def test_external_plex(domain_env: str):
     """
@@ -257,12 +302,14 @@ def test_external_plex(domain_env: str):
     except Exception as e:
         return ("no", f"dns_ok_but_http_error ({e})")
 
+
 # ========= OUTILS DOCKER/IP =========
 def get_deluge_ip():
     try:
         result = subprocess.run(
             ["docker", "exec", "deluge", "ip", "addr", "show", "tun0"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
         if match:
@@ -272,18 +319,21 @@ def get_deluge_ip():
     try:
         result = subprocess.run(
             ["docker", "exec", "deluge", "hostname", "-i"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         ip = result.stdout.strip().split()[0]
         return ip
     except Exception as e:
         raise RuntimeError(f"Could not detect IP inside deluge container: {e}")
 
+
 def get_vpn_ip():
     try:
         result = subprocess.run(
             ["docker", "exec", "vpn", "ip", "addr", "show", "tun0"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", result.stdout)
         if match:
@@ -292,8 +342,15 @@ def get_vpn_ip():
         pass
     raise RuntimeError("Could not detect VPN IP on tun0 inside container")
 
+
 def get_deluge_stats():
-    stats = {"num_downloading": 0, "num_seeding": 0, "download_rate": 0.0, "upload_rate": 0.0, "num_peers": 0}
+    stats = {
+        "num_downloading": 0,
+        "num_seeding": 0,
+        "download_rate": 0.0,
+        "upload_rate": 0.0,
+        "num_peers": 0,
+    }
     try:
         client = DelugeRPCClient(
             deluge_config["host"],
@@ -314,7 +371,9 @@ def get_deluge_stats():
                 stats["num_downloading"] += 1
             elif state == b"Seeding":
                 stats["num_seeding"] += 1
-        session_stats = client.call("core.get_session_status", ["download_rate", "upload_rate", "num_peers"])
+        session_stats = client.call(
+            "core.get_session_status", ["download_rate", "upload_rate", "num_peers"]
+        )
         stats["download_rate"] = round(session_stats[b"download_rate"] / 1024, 2)
         stats["upload_rate"] = round(session_stats[b"upload_rate"] / 1024, 2)
         stats["num_peers"] = session_stats[b"num_peers"]
@@ -322,6 +381,7 @@ def get_deluge_stats():
     except Exception as e:
         print(f"[DEBUG - Deluge] RPC error: {e}")
         return None
+
 
 # ========= COLLECTE =========
 plex_msg_lines = []
@@ -331,29 +391,58 @@ critical_services = ["plex-server", "vpn", "deluge"]
 for service in critical_services:
     status = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Running}}", service],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     state = status.stdout.strip()
-    plex_msg_lines.append(f"[SERVICE] {service} is {'running' if state == 'true' else 'NOT running'}")
+    plex_msg_lines.append(
+        f"[SERVICE] {service} is {'running' if state == 'true' else 'NOT running'}"
+    )
 
 # 2) VPN/Deluge IPs
 try:
-    vpn_ip_pub = subprocess.check_output(["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]).decode().strip()
-    deluge_ip_pub = subprocess.check_output(["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]).decode().strip()
-    vpn_ip_int = subprocess.check_output(["docker", "exec", "vpn", "hostname", "-i"]).decode().strip().split()[0]
-    deluge_ip_int = subprocess.check_output(["docker", "exec", "deluge", "hostname", "-i"]).decode().strip().split()[0]
+    vpn_ip_pub = (
+        subprocess.check_output(
+            ["docker", "exec", "vpn", "curl", "-s", "https://api.ipify.org"]
+        )
+        .decode()
+        .strip()
+    )
+    deluge_ip_pub = (
+        subprocess.check_output(
+            ["docker", "exec", "deluge", "curl", "-s", "https://api.ipify.org"]
+        )
+        .decode()
+        .strip()
+    )
+    vpn_ip_int = (
+        subprocess.check_output(["docker", "exec", "vpn", "hostname", "-i"])
+        .decode()
+        .strip()
+        .split()[0]
+    )
+    deluge_ip_int = (
+        subprocess.check_output(["docker", "exec", "deluge", "hostname", "-i"])
+        .decode()
+        .strip()
+        .split()[0]
+    )
 except Exception as e:
     plex_msg_lines.append(f"[NETWORK] Failed to retrieve VPN/Deluge IPs: {e}")
 
 # 3) Internet access Deluge
 try:
-    internet_check = subprocess.run(["docker", "exec", "deluge", "ping", "-c", "1", "8.8.8.8"], stdout=subprocess.DEVNULL)
+    internet_check = subprocess.run(
+        ["docker", "exec", "deluge", "ping", "-c", "1", "8.8.8.8"],
+        stdout=subprocess.DEVNULL,
+    )
 except Exception:
     internet_check = None
 
 # 4) Speedtest (rempli en fin si conditions OK)
 download_speed = 0.0
 upload_speed = 0.0
+
 
 def _can_run_speedtest_now() -> bool:
     try:
@@ -366,12 +455,14 @@ def _can_run_speedtest_now() -> bool:
         pass
     return True
 
+
 def _mark_speedtest_ran():
     try:
         with open(SPEEDTEST_STATE_FILE, "w") as f:
             json.dump({"last": int(time.time())}, f)
     except Exception:
         pass
+
 
 # 5) Plex tests
 PLEX_URL = os.getenv("PLEX_SERVER")
@@ -391,7 +482,10 @@ try:
     for session in sessions:
         user = session.user.title
         users_connected.add(user)
-        if hasattr(session, "transcodeSession") and session.transcodeSession is not None:
+        if (
+            hasattr(session, "transcodeSession")
+            and session.transcodeSession is not None
+        ):
             transcode_count += 1
 except Exception as e:
     print(f"[DEBUG - run_quick_check.py - PLEX - ERROR] Plex session fetch failed: {e}")
@@ -401,9 +495,20 @@ external_accessible, external_detail = test_external_plex(EXTERNAL_PLEX_URL)
 
 # 6) Docker stats Plex
 try:
-    docker_stats_output = subprocess.check_output(
-        ["docker", "stats", "--no-stream", "--format", "{{.CPUPerc}} {{.MemPerc}}", "plex-server"]
-    ).decode().strip()
+    docker_stats_output = (
+        subprocess.check_output(
+            [
+                "docker",
+                "stats",
+                "--no-stream",
+                "--format",
+                "{{.CPUPerc}} {{.MemPerc}}",
+                "plex-server",
+            ]
+        )
+        .decode()
+        .strip()
+    )
     cpu_str, mem_str = docker_stats_output.split()
     cpu = float(cpu_str.strip("%"))
     mem = float(mem_str.strip("%"))
@@ -428,7 +533,11 @@ net_io = psutil.net_io_counters()
 disk_io = psutil.disk_io_counters()
 try:
     temps = psutil.sensors_temperatures()
-    cpu_temp = temps["coretemp"][0].current if "coretemp" in temps and temps["coretemp"] else "N/A"
+    cpu_temp = (
+        temps["coretemp"][0].current
+        if "coretemp" in temps and temps["coretemp"]
+        else "N/A"
+    )
 except Exception:
     cpu_temp = "N/A"
 
@@ -457,6 +566,7 @@ should_try_speedtest = (
 if should_try_speedtest:
     try:
         import speedtest
+
         st = speedtest.Speedtest()
         download_speed = st.download() / 1e6
         # Upload moins fréquent pour réduire l'impact
@@ -473,14 +583,24 @@ data_entry = {
     "docker_services": {
         service: subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Running}}", service],
-            capture_output=True, text=True
-        ).stdout.strip() == "true"
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "true"
         for service in ["plex-server", "vpn", "deluge"]
     },
     "network": {
-        "vpn_ip": [ip for ip in [locals().get("vpn_ip_pub"), locals().get("vpn_ip_int")] if ip],
-        "deluge_ip": [ip for ip in [locals().get("deluge_ip_pub"), locals().get("deluge_ip_int")] if ip],
-        "internet_access": (internet_check.returncode == 0) if internet_check else False,
+        "vpn_ip": [
+            ip for ip in [locals().get("vpn_ip_pub"), locals().get("vpn_ip_int")] if ip
+        ],
+        "deluge_ip": [
+            ip
+            for ip in [locals().get("deluge_ip_pub"), locals().get("deluge_ip_int")]
+            if ip
+        ],
+        "internet_access": (
+            (internet_check.returncode == 0) if internet_check else False
+        ),
         "speedtest": {
             "download_mbps": round(download_speed, 2),
             "upload_mbps": round(upload_speed, 2),
@@ -496,7 +616,7 @@ data_entry = {
         "transcode_folder_found": (free_gb is not None),
         "local_access": bool(local_ok),
         "local_detail": str(local_code),
-        "external_access": str(external_accessible),   # "yes" / "no" / "error"
+        "external_access": str(external_accessible),  # "yes" / "no" / "error"
         "external_detail": str(external_detail),
     },
     "system": {
@@ -527,8 +647,8 @@ data_entry = {
         "max_time": MAX_TIME,
         "speedtest_enabled": SPEEDTEST_ENABLED,
         "speedtest_cooldown_sec": SPEEDTEST_COOLDOWN_SEC,
-        "public_ip_cache_ttl_sec": IP_CACHE_TTL_SEC
-    }
+        "public_ip_cache_ttl_sec": IP_CACHE_TTL_SEC,
+    },
 }
 
 try:

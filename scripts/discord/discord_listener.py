@@ -57,30 +57,6 @@ async def on_ready():
         print("[DEBUG - health_listener.py] Discord bot connected and ready.")
 
 
-# @bot.command(name="health")
-# async def run_health(ctx):
-#     if ctx.channel.id != CHANNEL_ID:
-#         if mode == "debug":
-#             print(
-#                 f"[DEBUG - health_listener.py] Command from unauthorized channel: {ctx.channel.id}"
-#             )
-#         return
-#
-#     await ctx.send("Running health check...")
-#
-#     try:
-#         if mode == "debug":
-#             print("[DEBUG - health_listener.py] Launching Health.py via subprocess.")
-#
-#         subprocess.run(["python3", "/app/scripts/health/Health.py"], timeout=60)
-#
-#         await ctx.send("Health check executed.")
-#
-#     except Exception as e:
-#         await ctx.send(f"Execution failed: {e}")
-#         if mode == "debug":
-#             print(f"[DEBUG - health_listener.py] Exception: {e}")
-
 @bot.command(name="plex_online")
 async def run_plex_online(ctx):
     if ctx.channel.id != CHANNEL_ID:
