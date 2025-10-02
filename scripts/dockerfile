@@ -12,7 +12,7 @@ COPY core/ /app/
 COPY discord/ /app/discord/
 COPY health/ /app/health/
 COPY monitor/ /app/monitor/
-copy monitor/alerts/ /app/alerts/
+#copy monitor/alerts/ /app/alerts/
 COPY requirements.txt /app/
 COPY addmedia/ /app/addmedia/
 COPY adduser/ /app/adduser/
