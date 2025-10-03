@@ -218,7 +218,7 @@ services:
       - ${ROOT}/scripts/core:/app
       - ${ROOT}/config/deluge:/app/config/deluge
       - ${ROOT}/scripts/discord:/app/discord
-      - ${ROOT}/scripts/monitor/alerts:/app/alerts
+#      - ${ROOT}/scripts/monitor/alerts:/app/alerts
       - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
       - /mnt/data:/mnt/data
       - /var/run/docker.sock:/var/run/docker.sock

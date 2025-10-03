@@ -241,19 +241,57 @@ def save_alert_state(state):
             json.dump(state, f)
     except Exception:
         pass
+# =========================
+# JSON helpers (tolerant readers/writers)
+# =========================
+def read_last_entry_universal(path):
+    """
+    Supporte :
+      - fichier = objet unique -> retourne l'objet
+      - fichier = tableau d'objets -> retourne le dernier
+      - fichier = NDJSON (1 objet JSON par ligne) -> retourne la dernière ligne valide
+    """
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            txt = f.read().strip()
+    except FileNotFoundError:
+        return None
+    if not txt:
+        return None
+
+    # 1) JSON "normal"
+    try:
+        obj = json.loads(txt)
+        if isinstance(obj, list):
+            return obj[-1] if obj else None
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        pass
+
+    # 2) NDJSON (dernière ligne non vide + valide)
+    last = None
+    for ln in txt.splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        last = ln
+    if last:
+        try:
+            return json.loads(last)
+        except Exception:
+            return None
+    return None
 
 # =========================
 # Alerts: log reading + checks
 # =========================
 def read_latest_data(log_path: str | Path = LOG_FILE):
-    try:
-        with open(log_path, "r") as f:
-            logs = json.load(f)
-            if not logs: return None
-            return logs[-1]
-    except Exception as e:
-        print(f"[ERROR] Unable to read data: {e}")
-        return None
+    data = read_last_entry_universal(log_path)
+    if data is None:
+        print(f"[ERROR] Unable to read data (empty or invalid): {log_path}")
+    return data
 
 def check_plex_local(data, state):
     plex = data.get("plex", {}) or {}
@@ -407,6 +445,15 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
         return m.group(1) if m else None
 
     def _load_core_conf(path):
+     #   """
+     #   Lecture robuste de /app/config/deluge/core.conf
+     #   - Essaye d'abord json.load strict
+     #   - En cas d'échec, "minify" léger:
+     #       * retire commentaires //... et /* ... */
+     #       * retire les virgules trainantes avant } ou ]
+     #       * découpe entre le premier '{' et le dernier '}'
+     #   """
+        import json, re
         if not os.path.isfile(path):
             msg = f"Missing Deluge config: {path}"
             print(f"[FAIL] {msg}"); _discord_send(f"❌ *ip_adresse_up*: {msg}")
@@ -414,10 +461,27 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            msg = f"Could not read JSON: {e}"
-            print(f"[FAIL] {msg}"); _discord_send(f"❌ *ip_adresse_up*: {msg}")
-            return None
+        except Exception as e1:
+            try:
+                raw = Path(path).read_text(encoding="utf-8")
+
+                # retire commentaires JS-like
+                raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.S)         # /* ... */
+                raw = re.sub(r"//.*?$", "", raw, flags=re.M)            # // ...
+                raw = re.sub(r"#.*?$", "", raw, flags=re.M)             # # ...
+
+                # garde seulement le bloc JSON extérieur
+                if "{" in raw and "}" in raw:
+                    raw = raw[raw.find("{"): raw.rfind("}")+1]
+
+                # retire virgules trainantes avant } ou ]
+                raw = re.sub(r",(\s*[}\]])", r"\1", raw)
+
+                return json.loads(raw)
+            except Exception as e2:
+                msg = f"Could not read JSON: {e2} (initial error: {e1})"
+                print(f"[FAIL] {msg}"); _discord_send(f"❌ *ip_adresse_up*: {msg}")
+                return None
 
     def _atomic_write_json(path, data):
         tmp = f"{path}.tmp"
