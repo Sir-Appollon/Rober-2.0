@@ -10,12 +10,12 @@ RUN apt-get update && \
 # Copier le code
 COPY core/ /app/
 COPY discord/ /app/discord/
-COPY health/ /app/health/
+#COPY health/ /app/health/
 COPY monitor/ /app/monitor/
 #copy monitor/alerts/ /app/alerts/
 COPY requirements.txt /app/
-COPY addmedia/ /app/addmedia/
-COPY adduser/ /app/adduser/
+#COPY addmedia/ /app/addmedia/
+#COPY adduser/ /app/adduser/
 
 # Installer les dépendances
 RUN pip install --no-cache-dir -r requirements.txt
