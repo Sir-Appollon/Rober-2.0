@@ -153,19 +153,19 @@ services:
       - /mnt/media/extra/downloads:/downloads
     restart: unless-stopped
 
-  pulsarr:
-    image: lakker/pulsarr:latest
-    container_name: pulsarr
-    network_mode: host
-    environment:
-      - NODE_ARGS=--log-both
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-      - NODE_ARGS=--log-both
-    volumes:
-      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
-    restart: unless-stopped
+  #  pulsarr:
+  #    image: lakker/pulsarr:latest
+  #    container_name: pulsarr
+  #    network_mode: host
+  #    environment:
+  #      - NODE_ARGS=--log-both
+  #      - PUID=${PUID}
+  #      - PGID=${PGID}
+  #      - TZ=${TZ}
+  #      - NODE_ARGS=--log-both
+  #    volumes:
+  #      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
+  #    restart: unless-stopped
 
   bazarr:
     image: linuxserver/bazarr:latest
@@ -190,6 +190,8 @@ services:
     image: nginx:alpine
     container_name: nginx-proxy
     network_mode: host
+    env_file:
+      - ${ROOT}/.env
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -239,7 +241,7 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
-#      - ${ROOT}/scripts/core/health:/app/health
+      #      - ${ROOT}/scripts/core/health:/app/health
       - ${ROOT}/scripts/monitor/repair:/app/repair
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
