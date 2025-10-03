@@ -241,6 +241,7 @@ def save_alert_state(state):
             json.dump(state, f)
     except Exception:
         pass
+
 # =========================
 # JSON helpers (tolerant readers/writers)
 # =========================
@@ -251,7 +252,6 @@ def read_last_entry_universal(path):
       - fichier = tableau d'objets -> retourne le dernier
       - fichier = NDJSON (1 objet JSON par ligne) -> retourne la dernière ligne valide
     """
-    import json
     try:
         with open(path, "r", encoding="utf-8") as f:
             txt = f.read().strip()
@@ -307,7 +307,7 @@ def check_plex_local(data, state):
             if prev_status == "offline": _simple_discord_send("[ALERT - END] Plex local access restored.")
     else:
         node["failure_streak"] += 1; node["success_streak"] = 0
-        if prev_status != "offline" and node["failure_streak"] >= LOCAL_FAILS_FOR_ALERT:
+        if prev_status != "offline" and node["failure_streak"] >= EXTERNAL_FAILS_FOR_ALERT:
             node["status"] = "offline"; print("[ALERT] Plex local access lost.")
             _simple_discord_send("[ALERT - initial] Plex local access lost (after consecutive failures).")
     state["plex_local"] = node
@@ -414,37 +414,96 @@ def extract_interface_ips_from_config():
     print(f"[INFO] Interfaces Deluge: {ips}")
     return ips
 
-    def verify_interface_consistency():
-        """Compare Deluge listen/outgoing avec l'IP VPN (tun0).
-        Priorité à la lecture RPC (read-only). Fallback fichier si RPC KO.
-        Retour: (consistent: bool, vpn_ip: str, extras: dict)
-        """
-        vpn_ip = _get_vpn_ip()
-        if not vpn_ip:
-            print("[WARN] No VPN IP found on tun0; assuming consistent to avoid false repair.")
-            return True, "", {}
+# -------- Deluge RPC helpers (read/write config) --------
+def _deluge_rpc_client(
+    host="localhost", port=58846,
+    user="localclient",
+    password="e0db9d7d51b2c62b7987031174607aa822f94bc9",
+    try_connect=True,
+):
+    try:
+        from deluge_client import DelugeRPCClient
+        c = DelugeRPCClient(host, port, user, password, False)
+        if try_connect:
+            c.connect()
+        return c
+    except Exception as e:
+        print(f"[WARN] Deluge RPC client unavailable: {e}")
+        return None
 
-        # 1) RPC read (préféré)
-        conf = _deluge_get_config_rpc()
-        if conf:
-            listen = conf.get("listen_interface")
-            outgoing = conf.get("outgoing_interface")
-            consistent = (listen == vpn_ip) and (outgoing == vpn_ip)
-            print(f"[INFO] Interfaces Deluge (RPC) listen={listen!r}, outgoing={outgoing!r} vs VPN={vpn_ip} -> {consistent}")
-            return consistent, vpn_ip, {"listen": listen, "outgoing": outgoing}
+def _deluge_get_config_rpc():
+    c = _deluge_rpc_client()
+    if not c:
+        return None
+    try:
+        cfg = c.call("core.get_config")
+        def b2s(x): return x.decode("utf-8","ignore") if isinstance(x,(bytes,bytearray)) else x
+        cfg = { b2s(k): b2s(v) for k,v in cfg.items() }
+        return {
+            "listen_interface":   cfg.get("listen_interface"),
+            "outgoing_interface": cfg.get("outgoing_interface"),
+        }
+    except Exception as e:
+        print(f"[WARN] RPC get_config failed: {e}")
+        return None
 
-        # 2) Fallback fichier (lecture seule)
-        print("[WARN] RPC not available, fallback to file read.")
-        conf = _load_core_conf(CONFIG_PATH_LOCAL)
-        if not conf:
-            print("[WARN] Unable to read Deluge config (RPC + file both failed).")
-            return True, vpn_ip, {}
+def _deluge_set_interfaces_rpc(vpn_ip: str) -> bool:
+    c = _deluge_rpc_client()
+    if not c:
+        return False
+    try:
+        c.call("core.set_config", {
+            "listen_interface": vpn_ip,
+            "outgoing_interface": vpn_ip,
+        })
+        print(f"[ACTION] RPC set_config applied (listen/outgoing = {vpn_ip})")
+        return True
+    except Exception as e:
+        print(f"[FAIL] RPC set_config failed: {e}")
+        return False
+
+def verify_interface_consistency():
+    """
+    Compare Deluge listen/outgoing avec l'IP VPN (tun0).
+    Priorité à la lecture RPC (read-only). Fallback fichier si RPC KO.
+    Retour: (consistent: bool, vpn_ip: str, extras: dict)
+    """
+    try:
+        vpn_ip = get_vpn_internal_ip()
+    except Exception as e:
+        print(f"[WARN] No VPN IP found on tun0 ({e}); assuming consistent to avoid false repair.")
+        return True, "", {}
+
+    # 1) Lecture via RPC (préférée)
+    conf = _deluge_get_config_rpc()
+    if conf:
         listen = conf.get("listen_interface")
         outgoing = conf.get("outgoing_interface")
         consistent = (listen == vpn_ip) and (outgoing == vpn_ip)
-        print(f"[INFO] Interfaces Deluge (file) listen={listen!r}, outgoing={outgoing!r} vs VPN={vpn_ip} -> {consistent}")
+        print(f"[INFO] Interfaces Deluge (RPC) listen={listen!r}, outgoing={outgoing!r} vs VPN={vpn_ip} -> {consistent}")
         return consistent, vpn_ip, {"listen": listen, "outgoing": outgoing}
 
+    # 2) Fallback fichier (lecture seule, tolérante)
+    print("[WARN] RPC not available, fallback to file read.")
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            raw = f.read()
+        raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.S)
+        raw = re.sub(r"//.*?$", "", raw, flags=re.M)
+        raw = re.sub(r"#.*?$",  "", raw, flags=re.M)
+        if "{" in raw and "}" in raw:
+            raw = raw[ raw.find("{"): raw.rfind("}")+1 ]
+        raw = re.sub(r",(\s*[}\]])", r"\1", raw)
+        conf = json.loads(raw)
+    except Exception as e:
+        print(f"[WARN] Unable to read Deluge config (RPC + file both failed): {e}")
+        return True, vpn_ip, {}
+
+    listen = conf.get("listen_interface")
+    outgoing = conf.get("outgoing_interface")
+    consistent = (listen == vpn_ip) and (outgoing == vpn_ip)
+    print(f"[INFO] Interfaces Deluge (file) listen={listen!r}, outgoing={outgoing!r} vs VPN={vpn_ip} -> {consistent}")
+    return consistent, vpn_ip, {"listen": listen, "outgoing": outgoing}
 
 # =========================
 # EMBEDDED: ip_adresse_up.py
@@ -470,39 +529,24 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
         return m.group(1) if m else None
 
     def _load_core_conf(path):
-     #   """
-     #   Lecture robuste de /app/config/deluge/core.conf
-     #   - Essaye d'abord json.load strict
-     #   - En cas d'échec, "minify" léger:
-     #       * retire commentaires //... et /* ... */
-     #       * retire les virgules trainantes avant } ou ]
-     #       * découpe entre le premier '{' et le dernier '}'
-     #   """
-        import json, re
+        import json as _json, re as _re
         if not os.path.isfile(path):
             msg = f"Missing Deluge config: {path}"
             print(f"[FAIL] {msg}"); _discord_send(f"❌ *ip_adresse_up*: {msg}")
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return _json.load(f)
         except Exception as e1:
             try:
                 raw = Path(path).read_text(encoding="utf-8")
-
-                # retire commentaires JS-like
-                raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.S)         # /* ... */
-                raw = re.sub(r"//.*?$", "", raw, flags=re.M)            # // ...
-                raw = re.sub(r"#.*?$", "", raw, flags=re.M)             # # ...
-
-                # garde seulement le bloc JSON extérieur
+                raw = _re.sub(r"/\*.*?\*/", "", raw, flags=re.S)
+                raw = _re.sub(r"//.*?$", "", raw, flags=re.M)
+                raw = _re.sub(r"#.*?$", "", raw, flags=re.M)
                 if "{" in raw and "}" in raw:
                     raw = raw[raw.find("{"): raw.rfind("}")+1]
-
-                # retire virgules trainantes avant } ou ]
-                raw = re.sub(r",(\s*[}\]])", r"\1", raw)
-
-                return json.loads(raw)
+                raw = _re.sub(r",(\s*[}\]])", r"\1", raw)
+                return _json.loads(raw)
             except Exception as e2:
                 msg = f"Could not read JSON: {e2} (initial error: {e1})"
                 print(f"[FAIL] {msg}"); _discord_send(f"❌ *ip_adresse_up*: {msg}")
@@ -523,53 +567,6 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
             print(f"[WARN] Could not create backup: {e}")
             _discord_send(f"⚠️ *ip_adresse_up*: backup non créé ({e})")
         os.replace(tmp, path)
- # -------- Deluge RPC helpers (read/write config) --------
-    def _deluge_rpc_client(
-        host="localhost", port=58846,
-        user="localclient",
-        password="e0db9d7d51b2c62b7987031174607aa822f94bc9",
-        try_connect=True,
-    ):
-        try:
-            from deluge_client import DelugeRPCClient
-            c = DelugeRPCClient(host, port, user, password, False)
-            if try_connect:
-                c.connect()
-            return c
-        except Exception as e:
-            print(f"[WARN] Deluge RPC client unavailable: {e}")
-            return None
-
-    def _deluge_get_config_rpc():
-        c = _deluge_rpc_client()
-        if not c:
-            return None
-        try:
-            cfg = c.call("core.get_config")
-            def b2s(x): return x.decode("utf-8","ignore") if isinstance(x,(bytes,bytearray)) else x
-            cfg = { b2s(k): b2s(v) for k,v in cfg.items() }
-            return {
-                "listen_interface":   cfg.get("listen_interface"),
-                "outgoing_interface": cfg.get("outgoing_interface"),
-            }
-        except Exception as e:
-            print(f"[WARN] RPC get_config failed: {e}")
-            return None
-
-    def _deluge_set_interfaces_rpc(vpn_ip: str) -> bool:
-        try:
-            c = _deluge_rpc_client()
-            if not c:
-                return False
-            c.call("core.set_config", {
-                "listen_interface": vpn_ip,
-                "outgoing_interface": vpn_ip,
-            })
-            print(f"[ACTION] RPC set_config applied (listen/outgoing = {vpn_ip})")
-            return True
-        except Exception as e:
-            print(f"[FAIL] RPC set_config failed: {e}")
-            return False
 
     def _restart_deluge():
         print(f"[ACTION] Restarting '{DELUGE_CONTAINER}'…"); _discord_send(f"🔄 *ip_adresse_up*: redémarrage de `{DELUGE_CONTAINER}`…")
@@ -599,7 +596,7 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
     print(f"[OK] VPN internal IP: {vpn_ip}")
     _discord_send(f"🟢 *ip_adresse_up*: IP VPN détectée **{vpn_ip}**.")
 
-        # --- RPC-first path (read/write via Deluge, pas de fichier) ---
+    # --- RPC-first path (read/write via Deluge, pas de fichier) ---
     conf_rpc = _deluge_get_config_rpc()
     if conf_rpc is not None:
         listen_old = conf_rpc.get("listen_interface")
@@ -645,7 +642,7 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
             print("[WARN] RPC write failed; fallback to file path.")
     # --- end RPC-first path ---
 
-
+    # Fallback fichier (écriture tolérante)
     conf = _load_core_conf(CONFIG_PATH_LOCAL)
     if conf is None: return 1
 
@@ -678,7 +675,7 @@ def embedded_ip_adresse_up(mode_cli=None, always=False, repair=False, force=Fals
             if not _restart_deluge(): return 1
         return 0
 
-    # apply
+    # apply (fichier)
     conf["listen_interface"]   = vpn_ip
     conf["outgoing_interface"] = vpn_ip
     try:
