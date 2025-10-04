@@ -163,6 +163,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - NODE_ARGS=--log-both
+    ports:
+      - "7777:7777"  
     volumes:
       - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
     restart: unless-stopped
