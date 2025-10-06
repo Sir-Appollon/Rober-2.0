@@ -153,34 +153,19 @@ services:
       - /mnt/media/extra/downloads:/downloads
     restart: unless-stopped
 
-<<<<<<< HEAD
-  #  pulsarr:
-  #    image: lakker/pulsarr:latest
-  #    container_name: pulsarr
-  #    network_mode: host
-  #    environment:
-  #      - NODE_ARGS=--log-both
-  #      - PUID=${PUID}
-  #      - PGID=${PGID}
-  #      - TZ=${TZ}
-  #    volumes:
-  #      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
-  #    restart: unless-stopped
-=======
-    pulsarr:
-      image: lakker/pulsarr:latest
-      container_name: pulsarr
-      network_mode: host
-      environment:
-        - NODE_ARGS=--log-both
-        - PUID=${PUID}
-        - PGID=${PGID}
-        - TZ=${TZ}
-        - NODE_ARGS=--log-both
-      volumes:
-        - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
-      restart: unless-stopped
->>>>>>> 37d8770 (pulsarr)
+  pulsarr:
+    image: lakker/pulsarr:latest
+    container_name: pulsarr
+    network_mode: host
+    environment:
+      - NODE_ARGS=--log-both
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - NODE_ARGS=--log-both
+    volumes:
+      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
+    restart: unless-stopped
 
   bazarr:
     image: linuxserver/bazarr:latest
