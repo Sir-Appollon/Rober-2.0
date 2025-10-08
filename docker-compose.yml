@@ -20,10 +20,8 @@ services:
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
     ports:
-      - 8112:8112       # Deluge Web UI (restreint à l'IP LAN)
-      - 58846:58846    # Deluge RPC (restreint à l'IP LAN)
-      - 9091:9091  # Transmission Web UI (active SEULEMENT si tu l'utilises)
-      - 8081:8081     # Optionnel, si tu en as besoin
+      - "127.0.0.1:8112:8112"       # Deluge Web UI (restreint à l'IP LAN)
+      - "127.0.0.1:58846:58846"    # Deluge RPC (restreint à l'IP LAN)
     volumes:
       - ${ROOT}/config/vpn:/config/vpn
       - /etc/localtime:/etc/localtime:ro
