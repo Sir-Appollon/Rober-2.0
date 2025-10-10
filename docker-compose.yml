@@ -310,8 +310,33 @@ services:
 #      - /var/run/docker.sock:/var/run/docker.sock
 #    networks:
 #      - default
-
-
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      # --- WireGuard (depuis ton .env) ---
+      - SERVERURL=${SERVERURL}             # IP publique, pas de DynDNS
+      - SERVERPORT=${SERVERPORT}
+      - PEERS=${PEERS}
+      - PEERDNS=${PEERDNS}
+      - INTERNAL_SUBNET=${INTERNAL_SUBNET}
+      - PEER_ALLOWEDIPS=${PEER_ALLOWEDIPS}
+    volumes:
+      - ${ROOT}/config/wireguard:/config
+      - /lib/modules:/lib/modules:ro
+    # Expose le port UDP WireGuard
+    ports:
+      - "${SERVERPORT}:${SERVERPORT}/udp"
+    # Nécessaire au marquage fw (routing WG)
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
 
 
 networks:
