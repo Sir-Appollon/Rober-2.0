@@ -53,11 +53,12 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8112/json || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8112/ | grep -q 200"]
       interval: 60s
       timeout: 10s
       retries: 3
       start_period: 90s
+
 
 
   jackett:
@@ -93,48 +94,48 @@ services:
       - /dev/dri:/dev/dri
     restart: unless-stopped
 
-#  tdarr:
-#    image: ghcr.io/haveagitgat/tdarr:latest
-#    container_name: tdarr
-#    restart: unless-stopped
-#    ports:
-#      - "8265:8265"   # Web UI
-#      - "8266:8266"   # Server Port
-#    environment:
-#      - PUID=${PUID}
-#      - PGID=${PGID}
-#      - TZ=${TZ}
-#      - serverIP=192.168.3.39 
-#      - serverPort=8266
-#    networks:
-#      tdarr-net:
-#        aliases:
-#          - tdarr
-#    volumes:
-#      - /mnt/media:/mnt/media
-#      - ${ROOT}/config/tdarr:/app/configs
-#      - ${ROOT}/config/tdarr/server:/app/server
-#      - ${ROOT}/config/tdarr/client:/app/client
+  #  tdarr:
+  #    image: ghcr.io/haveagitgat/tdarr:latest
+  #    container_name: tdarr
+  #    restart: unless-stopped
+  #    ports:
+  #      - "8265:8265"   # Web UI
+  #      - "8266:8266"   # Server Port
+  #    environment:
+  #      - PUID=${PUID}
+  #      - PGID=${PGID}
+  #      - TZ=${TZ}
+  #      - serverIP=192.168.3.39 
+  #      - serverPort=8266
+  #    networks:
+  #      tdarr-net:
+  #        aliases:
+  #          - tdarr
+  #    volumes:
+  #      - /mnt/media:/mnt/media
+  #      - ${ROOT}/config/tdarr:/app/configs
+  #      - ${ROOT}/config/tdarr/server:/app/server
+  #      - ${ROOT}/config/tdarr/client:/app/client
 
 
-#  tdarr_node:
-#    image: ghcr.io/haveagitgat/tdarr_node:latest
-#    container_name: tdarr_node
-#    restart: unless-stopped
-#    environment:
-#      - PUID=${PUID}
-#      - PGID=${PGID}
-#      - TZ=${TZ}
-#      - nodeID=MyNode
-#      - serverURL=http://tdarr:8266
-#    ports: []
-#    networks:
-#      - tdarr-net
-#    volumes:
-#      - /mnt/media:/mnt/media
-#      - ${ROOT}/config/tdarr/server:/app/server
-#      - ${ROOT}/config/tdarr/client:/app/client
-#    cpus: 1.5
+  #  tdarr_node:
+  #    image: ghcr.io/haveagitgat/tdarr_node:latest
+  #    container_name: tdarr_node
+  #    restart: unless-stopped
+  #    environment:
+  #      - PUID=${PUID}
+  #      - PGID=${PGID}
+  #      - TZ=${TZ}
+  #      - nodeID=MyNode
+  #      - serverURL=http://tdarr:8266
+  #    ports: []
+  #    networks:
+  #      - tdarr-net
+  #    volumes:
+  #      - /mnt/media:/mnt/media
+  #      - ${ROOT}/config/tdarr/server:/app/server
+  #      - ${ROOT}/config/tdarr/client:/app/client
+  #    cpus: 1.5
 
   radarr:
     image: linuxserver/radarr:latest
@@ -295,21 +296,21 @@ services:
     networks:
       - default
 
-#  watchtower:
-#    image: containrrr/watchtower
-#    container_name: watchtower
-#    restart: unless-stopped
-#    environment:
-#      - WATCHTOWER_CLEANUP=true              # Supprime les anciennes images
-#      - WATCHTOWER_REMOVE_VOLUMES=false      # Ne touche pas aux volumes
-#      - WATCHTOWER_POLL_INTERVAL=21600       # Vérifie toutes les 6h (en secondes)
-#      - WATCHTOWER_NOTIFICATIONS=discord     # Envoie notifications Discord
-#      - WATCHTOWER_NOTIFICATION_DISCORD_HOOK_URL=${DISCORD_WEBHOOK_URL}
-#      - TZ=${TZ}
-#    volumes:
-#      - /var/run/docker.sock:/var/run/docker.sock
-#    networks:
-#      - default
+  #  watchtower:
+  #    image: containrrr/watchtower
+  #    container_name: watchtower
+  #    restart: unless-stopped
+  #    environment:
+  #      - WATCHTOWER_CLEANUP=true              # Supprime les anciennes images
+  #      - WATCHTOWER_REMOVE_VOLUMES=false      # Ne touche pas aux volumes
+  #      - WATCHTOWER_POLL_INTERVAL=21600       # Vérifie toutes les 6h (en secondes)
+  #      - WATCHTOWER_NOTIFICATIONS=discord     # Envoie notifications Discord
+  #      - WATCHTOWER_NOTIFICATION_DISCORD_HOOK_URL=${DISCORD_WEBHOOK_URL}
+  #      - TZ=${TZ}
+  #    volumes:
+  #      - /var/run/docker.sock:/var/run/docker.sock
+  #    networks:
+  #      - default
   wireguard:
     image: linuxserver/wireguard:latest
     container_name: wireguard
