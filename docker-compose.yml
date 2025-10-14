@@ -260,7 +260,7 @@ services:
     network_mode: host
     restart: unless-stopped
 
-  Add-bot: 
+  add-bot: 
     build:
       context: ${ROOT}/scripts
       dockerfile: Dockerfile
