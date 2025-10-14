@@ -12,10 +12,12 @@ COPY core/ /app/
 COPY discord/ /app/discord/
 #COPY health/ /app/health/
 COPY monitor/ /app/monitor/
+COPY tool/ /app/tool/
 #copy monitor/alerts/ /app/alerts/
 COPY requirements.txt /app/
 #COPY addmedia/ /app/addmedia/
 #COPY adduser/ /app/adduser/
+
 
 # Installer les dépendances
 RUN pip install --no-cache-dir -r requirements.txt
