@@ -259,7 +259,19 @@ services:
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: host
     restart: unless-stopped
-  
+
+  Add-bot: 
+    build:
+      context: ${ROOT}/scripts
+      dockerfile: Dockerfile
+    env_file:
+      - ${ROOT}/.env
+    volumes:
+      - /mnt/data:/mnt/data
+      - ${ROOT}/scripts/tool:/app/tool
+    network_mode: host
+    restart: unless-stopped
+
   discord-bot:
     build:
       context: ${ROOT}/scripts
@@ -270,7 +282,7 @@ services:
       - /mnt/data:/mnt/data
       - ${ROOT}/scripts/core:/app/core
       - ${ROOT}/scripts/discord:/app/discord
-      #      - ${ROOT}/scripts/core/health:/app/health
+      #- ${ROOT}/scripts/core/health:/app/health
       #- ${ROOT}/scripts/monitor/repair:/app/repair
       - ${ROOT}/scripts/monitor:/app/monitor
       - ${ROOT}/scripts/monitor/alerts:/app/alerts
