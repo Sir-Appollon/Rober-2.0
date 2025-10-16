@@ -251,8 +251,8 @@ services:
       - /mnt/media/extra:/mnt/media/extra
       - ${ROOT}/.env:/app/.env:ro
     dns:
-      - 1.1.1.1     # Cloudflare
-      - 8.8.8.8     # Google      
+#      - 1.1.1.1     # Cloudflare
+#      - 8.8.8.8     # Google      
     command: ["python3", "/app/monitor_loop.py"]
     network_mode: service:vpn
     depends_on:
