@@ -228,10 +228,51 @@ services:
       - ${ROOT}/config/nginx/letsencrypt/live:/etc/letsencrypt/live
       - ${ROOT}/config/nginx/letsencrypt/archive:/etc/letsencrypt/archive
       - ${ROOT}/config/nginx/letsencrypt/ssl-dhparams.pem:/etc/letsencrypt/ssl-dhparams.pem
+      - ${ROOT}/config/nginx/www:/var/www/certbot
     dns:
       - 1.1.1.1
       - 8.8.8.8
     restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    depends_on:
+      - nginx
+    volumes:
+      - ${ROOT}/config/nginx/letsencrypt:/etc/letsencrypt
+      - ${ROOT}/config/nginx/www:/var/www/certbot
+      # on partage un petit fichier "stamp" pour signaler un renouvellement
+      - ${ROOT}/config/nginx/reload-flag:/reload-flag
+    entrypoint: /bin/sh -c
+    command: >
+      "trap exit TERM; while :; do
+         certbot renew --quiet --webroot -w /var/www/certbot
+         # si un cert a été renouvelé, certbot met à jour les dates des fichiers
+         # on dépose un flag que le sidecar va voir
+         date > /reload-flag/please-reload.txt
+         sleep 12h;
+       done"
+    restart: unless-stopped
+
+  nginx-reloader:
+    image: alpine:3.20
+    container_name: nginx-reloader
+    depends_on:
+      - nginx
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${ROOT}/config/nginx/reload-flag:/reload-flag
+    entrypoint: /bin/sh -c
+    command: >
+      "apk add --no-cache docker-cli inotify-tools >/dev/null 2>&1 || true;
+       touch /reload-flag/please-reload.txt;
+       while inotifywait -e modify,create,close_write,move /reload-flag/please-reload.txt >/dev/null 2>&1; do
+         echo '[reloader] Reload nginx-proxy...';
+         docker exec nginx-proxy nginx -t && docker exec nginx-proxy nginx -s reload || true;
+       done"
+    restart: unless-stopped
+  
 
   monitor:
     build:
