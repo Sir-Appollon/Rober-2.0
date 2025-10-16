@@ -250,7 +250,7 @@ services:
       - /mnt/media:/mnt/media
       - /mnt/media/extra:/mnt/media/extra
       - ${ROOT}/.env:/app/.env:ro
-    dns:
+#    dns:
 #      - 1.1.1.1     # Cloudflare
 #      - 8.8.8.8     # Google      
     command: ["python3", "/app/monitor_loop.py"]
