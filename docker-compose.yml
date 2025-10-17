@@ -15,11 +15,11 @@ services:
     environment:
       - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
       - OPENVPN_CONFIG=${OPENVPN_CONFIG}
-#      - LOCAL_NETWORK=${LOCAL_NETWORK}
+      - LOCAL_NETWORK=${LOCAL_NETWORK}
       - KILL_SWITCH=on
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
-#      - ADDITIONAL_PORTS=8112,58846
+      - ADDITIONAL_PORTS=8112,58846
     ports:
       - "192.168.2.38:8112:8112"       # Deluge Web UI (restreint à l'IP LAN)
       - "192.168.2.38:58846:58846" 
