@@ -15,7 +15,7 @@ services:
     environment:
       - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
       - OPENVPN_CONFIG=${OPENVPN_CONFIG}
-      - LOCAL_NETWORK=${LOCAL_NETWORK}
+#      - LOCAL_NETWORK=${LOCAL_NETWORK}
       - KILL_SWITCH=on
       - UFW_ALLOW_GW_NET=true
       - VPN_DISABLE_IPV6=true
