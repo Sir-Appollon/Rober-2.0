@@ -182,19 +182,19 @@ services:
       retries: 3
       start_period: 60s
 
-  pulsarr:
-    image: lakker/pulsarr:latest
-    container_name: pulsarr
-    network_mode: host
-    environment:
-      - NODE_ARGS=--log-both
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-      - NODE_ARGS=--log-both
-    volumes:
-      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
-    restart: unless-stopped
+#  pulsarr:
+#    image: lakker/pulsarr:latest
+#    container_name: pulsarr
+#    network_mode: host
+#    environment:
+#      - NODE_ARGS=--log-both
+#      - PUID=${PUID}
+#      - PGID=${PGID}
+#      - TZ=${TZ}
+#      - NODE_ARGS=--log-both
+#    volumes:
+#      - ${ROOT}/config/pulsarr:/app/data      # base de données, logs
+#    restart: unless-stopped
 
   bazarr:
     image: linuxserver/bazarr:latest
@@ -299,53 +299,53 @@ services:
     network_mode: host
     restart: unless-stopped
 
-  add-bot: 
-    build:
-      context: ${ROOT}/scripts
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
-    volumes:
-      - /mnt/data:/mnt/data
-      - ${ROOT}/scripts/tool:/app/tool
-    network_mode: host
-    restart: unless-stopped
+#  add-bot: 
+#    build:
+#      context: ${ROOT}/scripts
+#      dockerfile: Dockerfile
+#    env_file:
+#      - ${ROOT}/.env
+#    volumes:
+#      - /mnt/data:/mnt/data
+#      - ${ROOT}/scripts/tool:/app/tool
+#    network_mode: host
+#    restart: unless-stopped
 
-  discord-bot:
-    build:
-      context: ${ROOT}/scripts
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
-    volumes:  
-      - /mnt/data:/mnt/data
-      - ${ROOT}/scripts/core:/app/core
-      - ${ROOT}/scripts/discord:/app/discord
-      #- ${ROOT}/scripts/core/health:/app/health
-      #- ${ROOT}/scripts/monitor/repair:/app/repair
-      - ${ROOT}/scripts/monitor:/app/monitor
-      - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/scripts/addmedia:/app/addmedia
-      - ${ROOT}/scripts/adduser:/app/adduser
-      - ${ROOT}/scripts/requirements.txt:/app/requirements.txt
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${ROOT}/.env:/app/.env:ro
-    command: ["python3", "/app/discord/discord_listener.py"]
-    restart: unless-stopped
-    network_mode: host
+#  discord-bot:
+#    build:
+#      context: ${ROOT}/scripts
+#      dockerfile: Dockerfile
+#    env_file:
+#      - ${ROOT}/.env
+#    volumes:  
+#      - /mnt/data:/mnt/data
+#      - ${ROOT}/scripts/core:/app/core
+#      - ${ROOT}/scripts/discord:/app/discord
+#      #- ${ROOT}/scripts/core/health:/app/health
+#      #- ${ROOT}/scripts/monitor/repair:/app/repair
+#      - ${ROOT}/scripts/monitor:/app/monitor
+#      - ${ROOT}/scripts/monitor/alerts:/app/alerts
+#      - ${ROOT}/scripts/addmedia:/app/addmedia
+#      - ${ROOT}/scripts/adduser:/app/adduser
+#      - ${ROOT}/scripts/requirements.txt:/app/requirements.txt
+#      - /var/run/docker.sock:/var/run/docker.sock
+#      - ${ROOT}/.env:/app/.env:ro
+#    command: ["python3", "/app/discord/discord_listener.py"]
+#    restart: unless-stopped
+#    network_mode: host
 
-  autoheal:
-    image: willfarrell/autoheal:latest
-    container_name: autoheal
-    restart: unless-stopped
-    environment:
-      - AUTOHEAL_CONTAINER_LABEL=all         # Surveille tous les containers avec un healthcheck
-      - AUTOHEAL_INTERVAL=60                 # Vérifie toutes les 60 secondes
-      - AUTOHEAL_START_PERIOD=300            # Délai avant de surveiller au démarrage
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - default
+#  autoheal:
+#    image: willfarrell/autoheal:latest
+#    container_name: autoheal
+#    restart: unless-stopped
+#    environment:
+#      - AUTOHEAL_CONTAINER_LABEL=all         # Surveille tous les containers avec un healthcheck
+#      - AUTOHEAL_INTERVAL=60                 # Vérifie toutes les 60 secondes
+#      - AUTOHEAL_START_PERIOD=300            # Délai avant de surveiller au démarrage
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    networks:
+#      - default
 
   #  watchtower:
   #    image: containrrr/watchtower
