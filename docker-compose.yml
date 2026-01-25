@@ -275,29 +275,29 @@ services:
        done"
     restart: unless-stopped
   
-  monitor:
-    build:
-      context: ${ROOT}/scripts
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env
-    volumes:
-      - ${ROOT}/scripts/core:/app
-      - ${ROOT}/config/deluge:/app/config/deluge
-      - ${ROOT}/scripts/discord:/app/discord
+#  monitor:
+#    build:
+#      context: ${ROOT}/scripts
+#      dockerfile: Dockerfile
+#    env_file:
+#      - ${ROOT}/.env
+#    volumes:
+#      - ${ROOT}/scripts/core:/app
+#      - ${ROOT}/config/deluge:/app/config/deluge
+#      - ${ROOT}/scripts/discord:/app/discord
       #      - ${ROOT}/scripts/monitor/alerts:/app/alerts
-      - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
-      - /mnt/data:/mnt/data
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/media:/mnt/media
-      - /mnt/media/extra:/mnt/media/extra
-      - ${ROOT}/.env:/app/.env:ro
-    dns:
-      - 1.1.1.1     # Cloudflare
-      - 8.8.8.8     # Google      
-    command: ["python3", "/app/monitor_loop.py"]
-    network_mode: host
-    restart: unless-stopped
+#      - ${ROOT}/config/plex/transcode/Transcode:/app/Transcode
+#      - /mnt/data:/mnt/data
+#      - /var/run/docker.sock:/var/run/docker.sock
+#      - /mnt/media:/mnt/media
+#      - /mnt/media/extra:/mnt/media/extra
+#      - ${ROOT}/.env:/app/.env:ro
+#    dns:
+#      - 1.1.1.1     # Cloudflare
+#      - 8.8.8.8     # Google      
+#    command: ["python3", "/app/monitor_loop.py"]
+#    network_mode: host
+#    restart: unless-stopped
 
 #  add-bot: 
 #    build:
