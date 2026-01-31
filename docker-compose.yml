@@ -45,8 +45,8 @@ services:
     labels:
       - autoheal=true
     # Limites de ressources (compatibles docker compose)
-    cpus: "1.0"
-    mem_limit: "2g"
+    cpus: "3.0"
+    mem_limit: "4g"
     logging:
       driver: "json-file"
       options:
