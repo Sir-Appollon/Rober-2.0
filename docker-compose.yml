@@ -2,30 +2,30 @@ services:
 
   ### --- VPN & Download Stack --- ###
 
-vpn:
-  image: qmcgaw/gluetun:latest
-  container_name: vpn
-  env_file: .env
-  cap_add:
-    - NET_ADMIN
-  security_opt:
-    - label=disable
-  devices:
-    - /dev/net/tun:/dev/net/tun
-  environment:
-    - TZ=America/Montreal
-    - VPN_SERVICE_PROVIDER=custom
-    - VPN_TYPE=wireguard
-    - FIREWALL=on
-    - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_NETWORK}
-    - IPV6=off
-  ports:
-    - "192.168.2.38:8112:8112"      # Deluge Web UI (bind LAN)
-    - "192.168.2.38:58846:58846"    # Deluge daemon port (si tu l’utilises)
-  volumes:
-    - ${ROOT}/config/wireguard:/gluetun
-    - /etc/localtime:/etc/localtime:ro
-  restart: unless-stopped
+  vpn:
+    image: qmcgaw/gluetun:latest
+    container_name: vpn
+    env_file: .env
+    cap_add:
+      - NET_ADMIN
+    security_opt:
+      - label=disable
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TZ=America/Montreal
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - FIREWALL=on
+      - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_NETWORK}
+      - IPV6=off
+    ports:
+      - "192.168.2.38:8112:8112"      # Deluge Web UI (bind LAN)
+      - "192.168.2.38:58846:58846"    # Deluge daemon port (si tu l’utilises)
+    volumes:
+      - ${ROOT}/config/wireguard:/gluetun
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
 
   deluge:
     image: linuxserver/deluge:latest
