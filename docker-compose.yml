@@ -2,31 +2,30 @@ services:
 
   ### --- VPN & Download Stack --- ###
 
-  vpn:
-    image: haugene/transmission-openvpn
-    container_name: vpn
-    env_file: .env
-    cap_add:
-      - NET_ADMIN
-    security_opt:
-      - label=disable
-    devices:
-      - /dev/net/tun
-    environment:
-      - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
-      - OPENVPN_CONFIG=${OPENVPN_CONFIG}
-      - LOCAL_NETWORK=${LOCAL_NETWORK}
-      - KILL_SWITCH=on
-      - UFW_ALLOW_GW_NET=true
-      - VPN_DISABLE_IPV6=true
-      - ADDITIONAL_PORTS=8112,58846
-    ports:
-      - "192.168.2.38:8112:8112"       # Deluge Web UI (restreint à l'IP LAN)
-      - "192.168.2.38:58846:58846" 
-    volumes:
-      - ${ROOT}/config/vpn:/config
-      - /etc/localtime:/etc/localtime:ro
-    restart: unless-stopped
+vpn:
+  image: qmcgaw/gluetun:latest
+  container_name: vpn
+  env_file: .env
+  cap_add:
+    - NET_ADMIN
+  security_opt:
+    - label=disable
+  devices:
+    - /dev/net/tun:/dev/net/tun
+  environment:
+    - TZ=America/Montreal
+    - VPN_SERVICE_PROVIDER=custom
+    - VPN_TYPE=wireguard
+    - FIREWALL=on
+    - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_NETWORK}
+    - IPV6=off
+  ports:
+    - "192.168.2.38:8112:8112"      # Deluge Web UI (bind LAN)
+    - "192.168.2.38:58846:58846"    # Deluge daemon port (si tu l’utilises)
+  volumes:
+    - ${ROOT}/config/wireguard:/gluetun
+    - /etc/localtime:/etc/localtime:ro
+  restart: unless-stopped
 
   deluge:
     image: linuxserver/deluge:latest
@@ -58,8 +57,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
-
-
 
   jackett:
     image: linuxserver/jackett:latest
@@ -363,33 +360,33 @@ services:
   #      - /var/run/docker.sock:/var/run/docker.sock
   #    networks:
   #      - default
-  wireguard:
-    image: linuxserver/wireguard:latest
-    container_name: wireguard
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
+ # wireguard:
+ #   image: linuxserver/wireguard:latest
+ #   container_name: wireguard
+ #   cap_add:
+ #     - NET_ADMIN
+ #     - SYS_MODULE
+ #  environment:
+ #   - PUID=${PUID}
+  #    - PGID=${PGID}
+   #   - TZ=${TZ}
       # --- WireGuard (depuis ton .env) ---
-      - SERVERURL=${SERVERURL}             # IP publique, pas de DynDNS
-      - SERVERPORT=${SERVERPORT}
-      - PEERS=${PEERS}
-      - PEERDNS=${PEERDNS}
-      - INTERNAL_SUBNET=${INTERNAL_SUBNET}
-      - PEER_ALLOWEDIPS=${PEER_ALLOWEDIPS}
-    volumes:
-      - ${ROOT}/config/wireguard:/config
-      - /lib/modules:/lib/modules:ro
+    #  - SERVERURL=${SERVERURL}             # IP publique, pas de DynDNS
+     # - SERVERPORT=${SERVERPORT}
+      #- PEERS=${PEERS}
+      #- PEERDNS=${PEERDNS}
+      #- INTERNAL_SUBNET=${INTERNAL_SUBNET}
+      #- PEER_ALLOWEDIPS=${PEER_ALLOWEDIPS}
+    #volumes:
+     # - ${ROOT}/config/wireguard:/config
+      #- /lib/modules:/lib/modules:ro
     # Expose le port UDP WireGuard
-    ports:
-      - "${SERVERPORT}:${SERVERPORT}/udp"
+    #ports:
+     # - "${SERVERPORT}:${SERVERPORT}/udp"
     # Nécessaire au marquage fw (routing WG)
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    restart: unless-stopped
+    #sysctls:
+    #  - net.ipv4.conf.all.src_valid_mark=1
+    #restart: unless-stopped
 
 
 networks:

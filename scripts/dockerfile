@@ -8,11 +8,11 @@ RUN apt-get update && \
     apt-get clean
 
 # Copier le code
-COPY core/ /app/
-COPY discord/ /app/discord/
+#COPY core/ /app/
+#COPY discord/ /app/discord/
 #COPY health/ /app/health/
-COPY monitor/ /app/monitor/
-COPY tool/ /app/tool/
+#COPY monitor/ /app/monitor/
+#COPY tool/ /app/tool/
 #copy monitor/alerts/ /app/alerts/
 COPY requirements.txt /app/
 #COPY addmedia/ /app/addmedia/
