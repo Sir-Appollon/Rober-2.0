@@ -22,7 +22,7 @@ services:
       - "192.168.2.38:8112:8112"
       - "192.168.2.38:58846:58846"
     volumes:
-      - ${ROOT}/config/wireguard:/gluetun
+      - ${ROOT}/config/wireguard/wg0.conf:/gluetun/wireguard/wg0.conf:ro
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
 
