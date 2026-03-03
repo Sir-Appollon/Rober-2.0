@@ -14,12 +14,14 @@ services:
       - /dev/net/tun:/dev/net/tun
     environment:
       - TZ=America/Montreal
-      - VPN_SERVICE_PROVIDER=custom
+      - VPN_SERVICE_PROVIDER=mullvad
       - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - SERVER_HOSTNAMES=cz-prg-wg-101
       - FIREWALL=on
       - FIREWALL_OUTBOUND_SUBNETS=${LOCAL_NETWORK}
       - IPV6=off
-      - SERVER_HOSTNAMES=cz-prg-wg-101
     ports:
       - "192.168.2.38:8112:8112"      # Deluge Web UI (bind LAN)
       - "192.168.2.38:58846:58846"    # Deluge daemon port (si tu l’utilises)
