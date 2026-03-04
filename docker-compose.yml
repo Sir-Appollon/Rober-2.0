@@ -83,9 +83,10 @@ services:
       - PLEX_CLAIM=${PLEX_CLAIM}
     volumes:
       - ${ROOT}/config/plex/db:/config
-      - ${ROOT}/config/plex/transcode:/transcode
       - /mnt/media:/mnt/media
       - /mnt/media/extra:/mnt/media/extra
+    tmpfs:
+      - /transcode:rw,size=8g,mode=1777
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped
