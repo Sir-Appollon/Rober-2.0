@@ -36,7 +36,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${ROOT}/config/deluge:/config
-      - /mnt/media/extra/downloads:/downloads
+      - /mnt/media_overflow/downloads:/downloads
     restart: unless-stopped
     depends_on:
       - vpn
@@ -147,7 +147,7 @@ services:
       - ${ROOT}/config/radarr:/config
       - /mnt/media/movies:/movies
       - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/extra/downloads:/downloads
+      - /mnt/media_overflow/downloads:/downloads
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7878/ >/dev/null || exit 1"]
@@ -171,7 +171,7 @@ services:
       - ${ROOT}/config/sonarr:/config
       - /mnt/media/tv:/tv
       - /mnt/media/extra:/mnt/media/extra
-      - /mnt/media/extra/downloads:/downloads
+      - /mnt/media_overflow/downloads:/downloads
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8989/ >/dev/null || exit 1"]
