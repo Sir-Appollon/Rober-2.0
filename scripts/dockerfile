@@ -8,7 +8,7 @@ RUN apt-get update && \
     apt-get clean
 
 # Copier le code
-#COPY core/ /app/
+COPY core/ /app/
 #COPY discord/ /app/discord/
 #COPY health/ /app/health/
 #COPY monitor/ /app/monitor/
