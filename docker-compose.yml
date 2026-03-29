@@ -401,7 +401,7 @@ services.py:
     network_mode: host
     command: ["python3", "/app/repair_plex.py", "DNS_MATCH", "--apply"]
     restart: unless-stopped
-
+ 
 networks:
   monitoring:
     driver: bridge
