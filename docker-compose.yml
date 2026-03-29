@@ -388,19 +388,19 @@ services:
 #      - net.ipv4.conf.all.src_valid_mark=1
 #   restart: unless-stopped
 
-services.py:
-  repair-plex:
-    build:
-      context: ${ROOT}/scripts          # même dossier que ton Dockerfile actuel
-      dockerfile: Dockerfile
-    env_file:
-      - ${ROOT}/.env                    # injecte ton .env
-    volumes:
-      - ${ROOT}/scripts/tool/repair_plex.py:/app/repair_plex.py:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    network_mode: host
-    command: ["python3", "/app/repair_plex.py", "DNS_MATCH", "--apply"]
-    restart: unless-stopped
+#services.py:
+#  repair-plex:
+#    build:
+#      context: ${ROOT}/scripts          # même dossier que ton Dockerfile actuel
+#      dockerfile: Dockerfile
+#    env_file:
+#      - ${ROOT}/.env                    # injecte ton .env
+#    volumes:
+#      - ${ROOT}/scripts/tool/repair_plex.py:/app/repair_plex.py:ro
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    network_mode: host
+#    command: ["python3", "/app/repair_plex.py", "DNS_MATCH", "--apply"]
+#    restart: unless-stopped
  
 networks:
   monitoring:
