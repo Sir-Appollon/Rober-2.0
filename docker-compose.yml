@@ -215,7 +215,7 @@ services:
     image: nginx:alpine
     container_name: nginx-proxy
     network_mode: host
-    env_file:
+    env_file: 
       - ${ROOT}/.env
     environment:
       - PUID=${PUID}
@@ -401,7 +401,7 @@ services:
 #    network_mode: host
 #    command: ["python3", "/app/repair_plex.py", "DNS_MATCH", "--apply"]
 #    restart: unless-stopped
- 
+
 networks:
   monitoring:
     driver: bridge
